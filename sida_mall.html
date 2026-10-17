@@ -1,0 +1,146 @@
+<title>Bevakningslistan</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--fg:#18202b;--mut:#5d6878;--line:#d8dee6;--acc:#1f5fbf;--up:#17803d;--dn:#c0392b;--chip:#e7edf5;--sel:#eaf1fb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b212a;--fg:#e7ebf1;--mut:#9ba7b8;--line:#2d3644;--acc:#6aa3ff;--up:#4cc27a;--dn:#ff7a6b;--chip:#27303d;--sel:#1f2b3d;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1b212a;--fg:#e7ebf1;--mut:#9ba7b8;--line:#2d3644;--acc:#6aa3ff;--up:#4cc27a;--dn:#ff7a6b;--chip:#27303d;--sel:#1f2b3d;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding-inline:16px;padding-block:16px;max-width:1240px;margin-inline:auto;font-size:14px}
+h1{font-size:1.25rem;margin:0}.sub{color:var(--mut);margin:2px 0 14px;font-size:.85rem}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 12px;border-radius:6px;cursor:pointer;font:inherit}
+.tab[aria-selected="true"]{background:var(--acc);border-color:var(--acc);color:#fff}
+.tab small{opacity:.8;margin-left:4px}
+input[type=search],select{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:7px 10px;border-radius:6px;font:inherit;min-width:0}
+input[type=search]{flex:1 1 160px}
+[hidden]{display:none!important}
+label.chk{display:flex;gap:6px;align-items:center;color:var(--mut)}
+.note{background:var(--chip);border-radius:6px;padding:9px 12px;margin-bottom:10px;color:var(--mut);line-height:1.4;font-size:.85rem}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:8px}
+table{font-size:13px;border-collapse:collapse;width:100%;min-width:720px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 5px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:var(--card);color:var(--mut);font-weight:600;font-size:.78rem;cursor:pointer;user-select:none}
+th:first-child,td:first-child{text-align:left}
+th.on{color:var(--fg)}
+tr.r{cursor:pointer}tr.r:hover{background:var(--sel)}
+.up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--mut)}
+.pill.late{margin-left:6px;background:#fef3c7;color:#92400e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill.late{background:#4a3b12;color:#fcd34d}}
+:root[data-theme="dark"] .pill.late{background:#4a3b12;color:#fcd34d}
+.pill.bl{margin-left:6px;background:transparent;border:1px solid var(--line);color:var(--mut);cursor:help}
+.pill.bl.bu{border-color:var(--dn);color:var(--dn)}
+.pill.bl.bd{border-color:var(--up);color:var(--up)}
+.lag{color:#d97706;font-weight:700;margin-left:2px;cursor:help}
+.tk{color:var(--mut);font-size:.75rem;margin-left:6px}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;background:var(--chip);font-size:.75rem}
+.mk{margin:6px 0 0;font-size:.85rem;color:var(--mut)}
+.pill.mk-u{background:var(--up);color:#fff}
+.pill.mk-n{background:var(--dn);color:#fff}
+.pill.mk-x{background:var(--chip);color:var(--fg)}
+.star{background:none;border:0;cursor:pointer;font-size:1rem;line-height:1;padding:0 6px 0 0;color:var(--mut)}
+.star.on{color:#e0a100}
+.pill.v{background:var(--chip)}
+.pill.vg{background:var(--up);color:#fff}
+.pill.vr{background:var(--dn);color:#fff}
+tr.d td{text-align:left;white-space:normal;background:var(--sel);line-height:1.5;color:var(--fg)}
+tr.d b{color:var(--mut);font-weight:600}
+.gv{display:grid;gap:14px}.gc{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px}.gc h3{margin:0 0 4px;font-size:1rem}.gc .st{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.85rem;margin-bottom:6px}
+div.dc{position:sticky;left:0;width:min(calc(100vw - 54px),1040px);white-space:normal}
+p.kom{margin:8px 0 0;font-size:13px;line-height:1.45;max-width:820px}img.ch{cursor:zoom-in;display:block;width:100%;max-width:820px;height:auto;margin-top:10px;border-radius:6px;background:#fff}
+.empty{padding:22px;color:var(--mut);text-align:center}
+@media (max-width:520px){body{font-size:13px}}
+#lb{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.88);display:none;overflow:auto;padding:max(12px,env(safe-area-inset-top,0px)) 12px 12px}
+#lb.on{display:block}
+#lb img{display:block;width:100%;max-width:1400px;height:auto;margin:40px auto 0;background:#fff;border-radius:4px}
+#lbx{position:fixed;top:max(10px,env(safe-area-inset-top,0px));right:12px;z-index:51;border:0;border-radius:6px;background:#fff;color:#111;font:inherit;font-weight:600;padding:8px 14px;cursor:pointer;display:none}
+#lb.on+#lbx{display:block}
+#lbt{position:fixed;top:max(14px,env(safe-area-inset-top,0px));left:14px;z-index:51;color:#fff;font-size:.85rem;display:none;max-width:60vw}
+#lb.on~#lbt{display:block}
+</style>
+<h1>Bevakningslistan</h1>
+<div class="sub" id="sub"></div>
+<div id="mk" class="mk"></div>
+<div class="bar">
+ <div class="tabs" id="tabs" role="tablist"></div>
+</div>
+<div class="bar">
+ <input type="search" id="q" placeholder="Sök bolag eller ticker" aria-label="Sök">
+ <select id="minp" aria-label="Lägsta poäng"><option value="0">Alla poäng</option><option value="20">20+ poäng</option><option value="40">40+ poäng</option><option value="60">60+ poäng</option><option value="80">80+ poäng</option></select>
+ <label class="chk" id="vyl" hidden><select id="vy" aria-label="Visning"><option value="tabell">Visa som tabell</option><option value="grafer">Visa som grafer</option></select></label>
+ <label class="chk" id="vl"><input type="checkbox" id="vsig"> Bara med vändningssignal</label>
+</div>
+<div class="note" id="note"></div>
+<div id="gv" class="gv" hidden></div>
+<div class="wrap" id="tw"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+<div id="lb" role="dialog" aria-label="Förstorad graf"><img id="lbi" alt=""></div><button id="lbx" type="button">Stäng ✕</button><div id="lbt"></div>
+<script>
+const D=__DATA__;
+const AVD=[["regel","Regelträffar","Alla regler uppfyllda: över MA200, ej efter kursfall, omsättning minst 2 MSEK/dag. Poäng 0-100 mäter trendstyrka och kluster."],
+["poang","Bevaka med poäng","Insiderköp utan kursfall som missar något regelkrav. Ingen testad edge."],
+["kniv","Knivar","Insiderköp efter kursfall (mer än 20 % under 52v-högsta eller -15 % på 15 dagar). Insiderköpet markerar inte botten: i backtestet ingen uppstuds efter köpet. Vändningssignal = volymspik (2x), RSI över 35 och uppdag, första gången inom 60 dagar. Liten edge: ca +1 % median på 10 dagar, ca 0 % på 20."],
+["alla","Alla","Hela bevakningslistan."],
+["fav","Favoriter","Aktier du stjärnmärkt (☆ vid bolagsnamnet). Sparas på ditt konto och följer med mellan enheter."]];
+const COLS=[["bolag","Bolag"],["poang","Poäng"],["pers","Köpare"],["belopp","Belopp"],["bv","Storlek"],["fall15","15d före"],["topp","Från topp"],["d1","1D"],["d7","7D"],["d14","14D"],["tot","Totalt"],["rdag","Rapport"],["dagar","Tillagd"]];
+let tab=(location.hash||"").slice(1);if(!AVD.some(a=>a[0]===tab))tab="regel";
+const FAV=new Set();let favDb=null;
+let sort={k:"dagar",d:1},open=null;
+const $=id=>document.getElementById(id);
+const dagarSedan=d=>{const a=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.round((n-a)/864e5))};
+const dagarTill=d=>{const a=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((a-n)/864e5)};
+D.rader.forEach(x=>{x.dagar=dagarSedan(x.forsta);x.rdag=x.rapport?dagarTill(x.rapport):null;if(x.rdag!=null&&x.rdag<0)x.rdag=null});
+const LAG=x=>x.kurs_till?`<sup class="lag" title="Kursen ligger efter: senaste kurs hos Yahoo är från ${x.kurs_till} (marknadens senaste dag är ${D.kursdatum}). Siffrorna kan vara en dag gamla.">*</sup>`:"";
+const BL=x=>{if(x.blank==null)return"";const f=x.blank_f,a=f==null?"":f>0.3?" ↗":f<-0.3?" ↘":"";const c=f==null?"":f>0.3?" bu":f<-0.3?" bd":"";const t=`Blankat ${String(x.blank).replace(".",",")} % av aktierna (FI:s register, ${x.blank_d}).${f==null?"":` Större positioner (över 0,5 %) har ${f>0.3?"ökat":f<-0.3?"minskat":"varit i stort sett oförändrade"} de senaste 20 handelsdagarna (${(f>0?"+":"")+f.toFixed(1).replace(".",",")} procentenheter).`} Endast information, påverkar inte poängen.`;return`<span class="pill bl${c}" title="${t}">blankat ${x.blank.toFixed(1).replace(".",",")} %${a}</span>`};
+const NYTYP={vinstvarning:"Vinstvarning",nyemission:"Nyemission",m_and_a:"Förvärv/avyttring",ledning:"Ledningsförändring",prognoshojning:"Höjd prognos",rapport:"Rapport",annan_nyhet:"Annan nyhet"};
+const AK=x=>x.aterkop?`<span class="pill bl" title="Återköp av egna aktier enligt pressmeddelande (${x.aterkop}). Källa: MFN/Cision, senaste 90 dagarna.">återköp</span>`:"";
+const NYH=x=>{if(x.nyhet_kalla==="saknas")return`<b>Nyheter:</b> <span class="mut">ingen nyhetskälla för bolaget (finns inte i Nasdaq-datan och inget MFN/Cision-flöde hittades), så det går inte att säga om något föregick köpet</span><br>`;if(!x.nyhet||x.nyhet==="ingen_nyhet")return"";return`<b>Nyhet före köpet (14 d):</b> ${NYTYP[x.nyhet]||x.nyhet}${x.nyhet_rubrik?": "+x.nyhet_rubrik:""}${x.nyhet_kalla==="mfn"?` <span class="mut">(MFN/Cision)</span>`:""}<br>`};
+const SEN=x=>x.sen?`<span class="pill late" title="Affären gjordes ${x.affar} men anmäldes till FI först ${x.forsta}, ${x.sen} dagar senare (regeln är 3 arbetsdagar). Kursläget vid köpet skiljer sig från när informationen blev känd.">sen anmälan · ${x.sen} d</span>`:"";
+const fmtR=x=>x.rdag==null?'<span class="mut">-</span>':`<span title="${x.rapport} (${x.rapport_kalla||'uppskattad'})">${x.rapport_kalla==='kalender'||x.rapport_kalla==='pm'?'':'<span class="mut">~</span>'}${x.rdag===0?'idag':x.rdag===1?'imorgon':x.rdag+' d'}</span>`;
+const fmtT=n=>n==null?'-':n===0?'idag':n===1?'igår':'-'+n;
+const fmtX=(v,e)=>v==null?'<span class="mut">-</span>':`<span class="${e==null?'':e>0?'up':'dn'}" title="mot index: ${e==null?'-':(e>0?'+':'')+e.toFixed(1)+' p.e.'}">${v>0?'+':''}${v.toFixed(1)}%</span>`;
+const fmtP=v=>v==null?'<span class="mut">-</span>':`<span class="${v>0?'up':v<0?'dn':''}">${v>0?'+':''}${v.toFixed(1)}%</span>`;
+const fmtV=v=>{if(v==null)return '<span class="mut">-</span>';const k=v>=5000?'Large':v>=1000?'Mid':v>=250?'Small':'Micro';const t=v>=1000?(v/1000).toFixed(1).replace('.',',')+' mdr kr':Math.round(v)+' mn kr';return `<span title="Börsvärde ca ${t} (grovt: kurs × dagens antal aktier)">${k}</span>`};
+const fmtB=v=>v==null?'-':v>=1e6?(v/1e6).toFixed(1)+' Mkr':Math.round(v/1e3)+' tkr';
+function rows(){let r=D.rader.filter(x=>tab==="alla"||(tab==="fav"?FAV.has(x.ticker):x.avd===tab));
+ const q=$("q").value.trim().toLowerCase();if(q)r=r.filter(x=>(x.bolag+" "+x.ticker).toLowerCase().includes(q));
+ const mp=+$("minp").value;if(mp)r=r.filter(x=>(x.poang??-1)>=mp);
+ if($("vsig").checked)r=r.filter(x=>x.vandning);
+ const k=sort.k;r.sort((a,b)=>{const A=a[k],B=b[k];if(A===B&&k!=="poang")return (b.poang??-1)-(a.poang??-1);if(A==null&&B==null)return 0;if(A==null)return 1;if(B==null)return -1;
+  return (typeof A==="string"?A.localeCompare(B,"sv"):A-B)*sort.d});return r}
+function render(){
+ const M=D.marknad;$("mk").hidden=!(M&&M.lage);
+ if(M&&M.lage)$("mk").innerHTML=`<span class="pill mk-${M.lage==="uppgång"?"u":M.lage==="nedgång"?"n":"x"}">Marknaden: ${M.lage}</span> trend ${M.trend>0?"+":""}${M.trend} (skala −10..+10) · orosrisk ${M.orolig} %${M.vandning?` · ${M.vandning}${M.bekraftad?" (bekräftad)":" (obekräftad)"}`:""} <span class="mut">· OMXSPI, ${M.datum}</span>`;
+ $("sub").textContent=`Kurser till och med ${D.kursdatum}. Data uppdaterad ${D.uppdaterad} (svensk tid). ${D.rader.length} fall. 1D–Totalt räknas från publiceringen; grönt/rött = bättre/sämre än medianaktien samma period (håll över siffran för skillnaden).`;
+ $("tabs").innerHTML=AVD.map(a=>{const n=a[0]==="alla"?D.rader.length:a[0]==="fav"?D.rader.filter(x=>FAV.has(x.ticker)).length:D.rader.filter(x=>x.avd===a[0]).length;
+  return `<button class="tab" role="tab" aria-selected="${a[0]===tab}" data-t="${a[0]}">${a[1]}<small>${n}</small></button>`}).join("");
+ $("note").textContent=AVD.find(a=>a[0]===tab)[2];
+ const GV=tab==="fav"&&$("vy").value==="grafer";$("vyl").hidden=tab!=="fav";$("gv").hidden=!GV;$("tw").hidden=GV;
+ const VK=tab==="kniv"||tab==="alla"||tab==="fav";
+ $("vl").hidden=!VK;
+ $("th").innerHTML="<tr>"+COLS.map(c=>`<th data-k="${c[0]}" class="${sort.k===c[0]?'on':''}">${c[1]}${sort.k===c[0]?(sort.d<0?' ▾':' ▴'):''}</th>`).join("")+(VK?'<th>Vändning</th>':'')+"</tr>";
+ const r=rows();const nc=COLS.length+(VK?1:0);
+ if(GV){$("gv").innerHTML=r.length?r.map(x=>`<div class="gc"><h3>${x.bolag}${LAG(x)} <span class="tk">${x.ticker}</span>${BL(x)}${SEN(x)}${AK(x)}${x.vandning?`<span class="pill ${dagarSedan(x.vandning.datum)<=10?'vg':'v'}" title="Vändningssignal ${x.vandning.datum}: volymspik ${x.vandning.vol}x, RSI över 35 och uppdag" style="margin-left:6px;font-size:11px">↗ vände ${x.vandning.datum.slice(5)}</span>`:''} <span class="mut">· poäng ${x.poang==null?'-':x.poang}</span></h3><div class="st"><span>1D ${fmtX(x.d1,x.d1x)}</span><span>7D ${fmtX(x.d7,x.d7x)}</span><span>14D ${fmtX(x.d14,x.d14x)}</span><span>Totalt ${fmtX(x.tot,x.totx)}</span><span>Storlek ${fmtV(x.bv)}</span><span>Rapport ${fmtR(x)}</span></div>${x.kommentar?`<p class="kom">${x.kommentar}</p>`:''}${D.bilder[x.ticker]?`<img class="ch" alt="Kursgraf ${x.bolag}" src="${D.bilder[x.ticker]}">`:`<span class="mut">${x.ingen_graf||"Ingen graf för det här fallet."}</span>`}</div>`).join(""):`<div class="empty">${FAV.size?"Inga favoriter matchar.":"Inga favoriter än. Tryck på ☆ vid ett bolag så hamnar det här."}</div>`}
+ $("tb").innerHTML=r.length?r.map(x=>{const id=x.ticker;
+  let h=`<tr class="r" data-id="${id}"><td><button type="button" class="star${FAV.has(x.ticker)?" on":""}" data-s="${x.ticker}" aria-label="Favorit" aria-pressed="${FAV.has(x.ticker)}">${FAV.has(x.ticker)?"★":"☆"}</button>${x.bolag}${LAG(x)}<span class="tk">${x.ticker}</span>${BL(x)}${SEN(x)}${AK(x)}${x.vandning?`<span class="pill ${dagarSedan(x.vandning.datum)<=10?'vg':'v'}" title="Vändningssignal ${x.vandning.datum}: volymspik ${x.vandning.vol}x, RSI över 35 och uppdag" style="margin-left:6px;font-size:11px">↗ vände ${x.vandning.datum.slice(5)}</span>`:''}</td><td>${x.poang==null?'-':x.poang}</td><td>${x.pers}</td><td>${fmtB(x.belopp)}</td><td>${fmtV(x.bv)}</td><td>${fmtP(x.fall15)}</td><td>${fmtP(x.topp)}</td><td>${fmtX(x.d1,x.d1x)}</td><td>${fmtX(x.d7,x.d7x)}</td><td>${fmtX(x.d14,x.d14x)}</td><td>${fmtX(x.tot,x.totx)}</td><td>${fmtR(x)}</td><td>${fmtT(x.dagar)}</td>`;
+  if(VK)h+=`<td>${x.vandning?`<span class="pill v ${x.vandning.sedan==null?'':x.vandning.sedan>0?'vg':x.vandning.sedan<0?'vr':''}" title="Kurs sedan signalen">${x.vandning.datum.slice(5)} ${x.vandning.vol}x${x.vandning.sedan==null?'':' · '+(x.vandning.sedan>0?'+':'')+x.vandning.sedan.toFixed(1)+'%'}</span>`:'<span class="mut">-</span>'}</td>`;
+  h+="</tr>";
+  if(open===id)h+=`<tr class="d"><td colspan="${nc}"><div class="dc"><b>Köpare:</b> ${x.personer||'-'}<br><b>Första publicering:</b> ${x.forsta} &nbsp; <b>Senaste:</b> ${x.senaste} &nbsp; <b>Omsättning:</b> ${x.oms==null?'-':x.oms+' MSEK/dag'} &nbsp; <b>Över MA200:</b> ${x.ma200||'-'}<br>${x.extra?`<b>Med i listan:</b> äldre än 30 dagar, men en vändningssignal kom nyligen<br>`:''}${x.kommentar?`<b>Kommentar:</b> ${x.kommentar}<br>`:''}${x.teknik?`<b>Teknik:</b> ${x.teknik}<br>`:''}${x.rapport||x.rapport_senast?`<b>Rapport:</b> ${x.rapport_senast?'senaste '+x.rapport_senast:''}${x.rapport_senast&&x.rapport?' · ':''}${x.rapport?'nästa '+x.rapport+' ('+(x.rapport_kalla==='kalender'?'enligt kalender':x.rapport_kalla==='pm'?'enligt bolagets pressmeddelande':x.rapport_kalla==='grovt'?'grov uppskattning, +91 d':'uppskattad')+(x.rdag!=null?', om '+x.rdag+' d':'')+')':''}<br>`:''}${x.rod?`<b>Röd flagga:</b> ${x.rod}<br>`:''}${NYH(x)}${x.aterkop?`<b>Återköp:</b> ${x.aterkop} <span class="mut">(MFN/Cision, senaste 90 dagarna)</span><br>`:''}${x.vandning?`<b>Vändningssignal:</b> ${x.vandning.datum}, volym ${x.vandning.vol}x normal<br>`:''}${!D.bilder[id]&&x.ingen_graf?`<span class="mut">${x.ingen_graf}</span><br>`:""}${D.bilder[id]?`<img class="ch" alt="Kursgraf ${x.bolag}" src="${D.bilder[id]}">`:'<span class="mut">Ingen graf för det här fallet.</span>'}</div></td></tr>`;
+  return h}).join(""):`<tr><td colspan="${nc}" class="empty">${tab==="fav"&&!FAV.size?"Inga favoriter än. Tryck på ☆ vid ett bolag så hamnar det här.":"Inga fall matchar."}</td></tr>`}
+function lbClose(){$("lb").classList.remove("on");document.body.style.overflow=""}
+function lbOpen(src,alt){$("lbi").src=src;$("lbi").alt=alt;$("lbt").textContent=alt;$("lb").classList.add("on");$("lb").scrollTop=0;document.body.style.overflow="hidden"}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")lbClose()});
+document.addEventListener("click",e=>{
+ if(e.target.id==="lbx"||e.target.id==="lb"){lbClose();return}
+ const im=e.target.closest("img.ch");if(im){lbOpen(im.src,im.alt);return}
+ const st=e.target.closest(".star");if(st){const k=st.dataset.s;FAV.has(k)?FAV.delete(k):FAV.add(k);saveFav();render();return}
+ const t=e.target.closest(".tab");if(t){tab=t.dataset.t;open=null;try{history.replaceState(null,"","#"+tab)}catch(_){}render();return}
+ const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;sort=sort.k===k?{k,d:-sort.d}:{k,d:(k==="bolag"||k==="dagar"||k==="rdag")?1:-1};render();return}
+ const r=e.target.closest("tr.r");if(r){open=open===r.dataset.id?null:r.dataset.id;render()}});
+function saveFav(){const a=[...FAV];try{localStorage.setItem("fav",JSON.stringify(a))}catch(_){}
+ if(favDb)favDb.set({t:a,u:new Date().toISOString()}).catch(()=>{})}
+try{(JSON.parse(localStorage.getItem("fav")||"[]")).forEach(k=>FAV.add(k))}catch(_){}
+(async()=>{try{const u=await claude.use("user"),db=await claude.use("db");if(!u||!db)return;const id=await u.id();if(!id)return;
+ favDb=db.collection("data/users/"+id).doc("fav");
+ favDb.onSnapshot(sn=>{const d=sn.exists&&sn.data();if(d&&Array.isArray(d.t)){FAV.clear();d.t.forEach(k=>FAV.add(k));render()}else if(FAV.size){saveFav()}},()=>{})}catch(_){}})();
+["q","minp","vsig","vy"].forEach(i=>$(i).addEventListener("input",render));
+render();
+</script>

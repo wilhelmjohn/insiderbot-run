@@ -1,0 +1,43 @@
+name: bio
+on:
+  workflow_dispatch:
+    inputs:
+      ny:
+        description: "Ny genomgång av hela börsen (ja/nej)"
+        default: "nej"
+  #AV# schedule:
+    #AV# - cron: "20 16 * * 1-5"   # vardagar efter stängning
+    #AV# - cron: "30 15 * * 0"     # söndag: ny genomgång av börsen
+concurrency:
+  group: bio
+permissions:
+  contents: read
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas numpy yfinance
+      - run: |
+          if [ "${{ inputs.ny }}" = "ja" ] || [ "${{ github.event.schedule }}" = "30 15 * * 0" ]; then python -u bio_hamta.py ny; else python -u bio_hamta.py; fi
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add bio_ohlc.csv bio_info.csv bio_tickers.txt
+          git diff --cached --quiet || git commit -m "bio: kurser och nyckeltal $(date -u +%F)"
+          git pull --rebase && git push

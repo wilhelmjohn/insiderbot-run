@@ -1,0 +1,50 @@
+name: Candlestick-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: candle
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas numpy yfinance
+      - name: Kör candlestick-test
+        timeout-minutes: 30
+        run: |
+          set -o pipefail
+          python -u candle_test.py 2>&1 | tee candle_logg.txt
+      - name: Spara resultat
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in candle_logg.txt candle_resultat.csv candle_handelser.csv; do git add "$f" || true; done
+          git diff --cached --quiet || git commit -m "Candlestick-test $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            sleep $((RANDOM % 20 + 5))
+          done

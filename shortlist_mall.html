@@ -1,0 +1,138 @@
+<title>Biotech-shortlist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: en smal kolumn med fem likadana kort, ett per bolag. Överst en mening om urvalet, längst ned bolagen som nästan kom med. Samma färg och typ som Biotechscreen. */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --surface2:#EAEEF5; --ink:#141B2D; --muted:#59627A; --line:#D6DCE8;
+  --accent:#4A3FCB; --accent-soft:#E7E5FA;
+  --good:#17724A; --good-soft:#DDF1E6; --warn:#8F5A00; --warn-soft:#FBEED2; --bad:#B3261E; --bad-soft:#F8E0DD;
+  --f-disp:"Schibsted Grotesk","Segoe UI",system-ui,sans-serif; --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body);margin:0;padding-inline:clamp(16px,4vw,32px);padding-block:24px 56px}
+.wrap{max-width:760px;margin-inline:auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-disp);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:clamp(28px,5vw,38px);line-height:1.1}
+h2{font-size:20px;line-height:1.2}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:6px 24px}
+header.top p{margin:8px 0 0;max-width:60ch}
+.stamp{font-size:13px;color:var(--muted);text-align:right}
+.urval{margin:0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:15px;max-width:none}
+.urval b{font-weight:600}
+.cards{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;list-style:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px 16px;flex-wrap:wrap}
+.top > div{min-width:0}
+.nm{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tk{font:500 12px var(--f-mono);color:var(--muted)}
+.fav{font:600 12px/1.2 var(--f-body);padding:3px 8px;border-radius:5px;background:var(--accent-soft);color:var(--accent)}
+.sub{font-size:13px;color:var(--muted);margin-top:2px}
+.px{text-align:right;font:500 15px var(--f-mono);font-variant-numeric:tabular-nums}
+.px small{display:block;font-size:12px;color:var(--muted)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.ev{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:10px 12px;border-radius:8px;background:var(--accent-soft)}
+.ev .dt{font:600 14px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev .tx{font-size:14px;min-width:0}
+.ev .tx small{display:block;font-size:12px;color:var(--muted)}
+.ev .dd{font:500 13px var(--f-mono);white-space:nowrap;text-align:right}
+.rows{display:flex;flex-direction:column;gap:10px;margin:0}
+.rows > div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 12px}
+.rows dt{font:600 11px/1.9 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rows dd{margin:0;font-size:15px;text-wrap:pretty}
+.rows .risk dt{color:var(--warn)}
+.met{display:flex;flex-wrap:wrap;gap:6px 18px;padding-top:12px;border-top:1px solid var(--line);font-size:13px}
+.met span{color:var(--muted)}
+.met b{font:500 13px var(--f-mono);color:var(--ink);margin-left:4px;font-variant-numeric:tabular-nums}
+section.near{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}
+section.near ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+section.near li{display:grid;grid-template-columns:180px minmax(0,1fr);gap:2px 12px;font-size:15px}
+section.near li b{font-weight:600}
+footer{font-size:13px;color:var(--muted);max-width:70ch}
+@media (max-width:560px){
+  .ev{grid-template-columns:auto minmax(0,1fr)}
+  .ev .dd{grid-column:1/-1;text-align:left}
+  .rows > div{grid-template-columns:minmax(0,1fr)}
+  section.near li{grid-template-columns:minmax(0,1fr)}
+  .px{text-align:left}
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Biotech · Stockholmsbörsen</div>
+      <h1>Biotech-shortlist</h1>
+      <p class="muted">Fem bolag att följa de närmaste månaderna. Allt annat, med fler bolag och mer detaljer, finns i Biotechscreen.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <p class="urval"><b>Så valdes de.</b> Ingen röd varning, en grund på minst 55 av 100 och ett konkret besked inom de närmaste månaderna. Saniona är med för att du lyfte den.</p>
+
+  <ol class="cards" id="cards"></ol>
+
+  <section class="near" aria-labelledby="nh">
+    <h2 id="nh">Nästan med</h2>
+    <ul id="near"></ul>
+  </section>
+
+  <footer>
+    Kurs, kassa och ägarandelar kommer från Yahoo Finance och kan vara försenade eller felaktiga för små bolag. Insynsköp kommer från Finansinspektionen. Texterna bygger på bolagens pressmeddelanden och rapporter och är skrivna av en AI-modell (Claude), som också väljer ut bolagen; de kan innehålla fel. Siffrorna uppdateras varje vardagskväll.
+    Detta är en lista att följa och ingen investeringsrådgivning. Biotech är bland de mest riskfyllda aktierna och du kan förlora hela insatsen.
+  </footer>
+</div>
+
+<script>
+const DATA = /*DATA*/;
+const MAN = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const sv = (x, n = 1) => x == null ? "–" : x.toFixed(n).replace(".", ",");
+const pct = x => x == null ? "–" : (x > 0 ? "+" : x < 0 ? "−" : "") + sv(Math.abs(x)) + " %";
+const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
+const dat = s => { const d = new Date(s + "T12:00:00"); return d.getDate() + " " + MAN[d.getMonth()]; };
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const k in props) { if (k === "class") e.className = props[k]; else e.setAttribute(k, props[k]); }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+}
+function rad(klass, label, text) { return el("div", klass ? {class: klass} : null, el("dt", null, label), el("dd", null, text)); }
+function kort(z) {
+  let dd = "inget exakt datum", dt = z.period || "–";
+  if (z.datum) { dt = dat(z.datum); dd = z.dagar < 0 ? "datum har passerat" : z.dagar === 0 ? "idag" : "om " + z.dagar + " d"; }
+  const kop = z.kop > 0 ? sv(z.kop) + " MSEK (" + z.kop_n + " köp)" : "inga";
+  return el("li", {class: "card"},
+    el("div", {class: "top"},
+      el("div", null,
+        el("div", {class: "nm"}, el("h2", null, z.namn), el("span", {class: "tk"}, z.t.replace(".ST", "")), z.roll === "favorit" ? el("span", {class: "fav"}, "Du lyfte den") : null),
+        el("div", {class: "sub"}, "Börsvärde " + sv(z.mc) + " mdr SEK")),
+      el("div", {class: "px"}, sv(z.kurs, 2) + " kr", el("small", {class: cls(z.d1)}, pct(z.d1) + " idag"), el("small", {class: cls(z.ret20)}, pct(z.ret20) + " på 20 d"))),
+    el("div", {class: "ev"},
+      el("span", {class: "dt"}, dt),
+      el("span", {class: "tx"}, z.handelse, el("small", null, z.sakerhet)),
+      el("span", {class: "dd"}, dd)),
+    el("dl", {class: "rows"}, rad("", "Varför", z.varfor), rad("risk", "Risk", z.fel), rad("", "Följ", z.folj)),
+    el("div", {class: "met"},
+      el("span", null, "Grund", el("b", null, z.vad + "/100")),
+      el("span", null, "Timing", el("b", null, z.nar + "/100")),
+      el("span", null, "Kassa", el("b", null, z.kassa)),
+      el("span", null, "Insynsköp 6 mån", el("b", null, kop))));
+}
+document.getElementById("stamp").textContent = "Kurs " + dat(DATA.kursdatum) + " " + DATA.kursdatum.slice(0, 4);
+const cards = document.getElementById("cards");
+DATA.lista.forEach(z => cards.append(kort(z)));
+const near = document.getElementById("near");
+DATA.nastan.forEach(z => near.append(el("li", null, el("b", null, z.namn), el("span", null, z.varfor))));
+</script>

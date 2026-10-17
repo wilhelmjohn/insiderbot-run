@@ -1,0 +1,55 @@
+name: bevmfn
+
+# Reservkälla för bevakningslistan: pressmeddelanden via MFN/Cision för bolag som saknas i Nasdaq-nyhetsdatan,
+# återköp och rapportdatum. Resultat: nyheter_mfn.csv (läses av bevakning.py), bev_mfn_kalla.csv, bev_mfn_logg.txt.
+on:
+  workflow_dispatch:
+    inputs:
+      minuter:
+        description: "Högsta antal minuter för sökningen"
+        default: "30"
+  #AV# schedule:
+    #AV# - cron: "30 15 * * 1-5"   # före kvällens körning av bevakningen
+
+concurrency:
+  group: bevmfn
+permissions:
+  contents: read
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas requests numpy
+      - name: Hämta
+        run: python -u bev_mfn.py --max-minuter "${{ inputs.minuter || '30' }}" 2>&1 | tee bev_mfn_utskrift.txt
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          for f in nyheter_mfn.csv bev_mfn_kalla.csv bev_mfn_logg.txt; do [ -f "$f" ] && git add "$f"; done
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "bevmfn: nyheter, återköp, rapporter $(date -u '+%F %H:%M')"
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1

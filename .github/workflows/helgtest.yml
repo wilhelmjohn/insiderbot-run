@@ -1,0 +1,41 @@
+name: Helgtest FI
+
+# Engångstest (manuell): finns publiceringar daterade på helger hos FI?
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pandas lxml
+      - name: Fråga FI om helgdagar
+        run: python -u helgtest.py
+      - name: Spara loggen
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add helg_logg.txt || true
+          git diff --cached --quiet || git commit -m "Logg helgtest FI"
+          for i in 1 2 3; do git pull --rebase --autostash origin main && git push && break; sleep 5; done

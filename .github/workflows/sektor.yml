@@ -1,0 +1,54 @@
+name: sektor
+
+# Underlag till Sektortracker: sektor per bolag (Yahoo, hämtas om var 60:e dag) och sektor-ETF:er i USA. Loggen hamnar i sektor_logg.txt.
+on:
+  workflow_dispatch:
+    inputs:
+      vad:
+        description: "info, etf eller tomt för båda"
+        default: ""
+  #AV# schedule:
+    #AV# - cron: "50 16 * * 1-5"   # vardagar, efter att kurserna hämtats
+
+concurrency:
+  group: sektor
+permissions:
+  contents: read
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas yfinance
+      - name: Hämta
+        run: python -u sektor_hamta.py ${{ inputs.vad }}
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          for f in sektor_info.csv sektor_etf.csv sektor_logg.txt; do [ -f "$f" ] && git add "$f"; done
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "sektor: underlag $(date -u +%F)"
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1

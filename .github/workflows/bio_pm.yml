@@ -1,0 +1,48 @@
+name: bio_pm
+on:
+  workflow_dispatch:
+  #AV# schedule:
+    #AV# - cron: "17 5-17/2 * * 1-5"   # vardagar, varannan timme
+concurrency:
+  group: bio_pm
+permissions:
+  contents: read
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas requests
+      - env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python -u bio_pm.py
+      - name: Spara
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add bio_pm.csv bio_pm_status.csv
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "bio: pressmeddelanden $(date -u '+%F %H:%M')"
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs --autostash >/tmp/gitlog.txt 2>&1 && git push >>/tmp/gitlog.txt 2>&1; then exit 0; fi
+            cat /tmp/gitlog.txt; sleep 8
+          done
+          # misslyckades tre gånger: lägg felet på en felsökningsgren så att det går att läsa
+          git status >>/tmp/gitlog.txt 2>&1; git log --oneline -5 >>/tmp/gitlog.txt 2>&1
+          git checkout -q -b "dbg-bio-pm-${GITHUB_RUN_ID}" && cp /tmp/gitlog.txt bio_pm_fel.txt && git add -f bio_pm_fel.txt && git commit -qm "debug" && git push -q origin HEAD || true
+          exit 1

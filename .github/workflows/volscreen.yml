@@ -1,0 +1,51 @@
+name: Volscreen
+
+# Hämtar 3 år OHLCV + nyckeltal + rapportdatum för valda tickers (volatilitetsscreening). Rör inga andra filer.
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers, kommaseparerade"
+        required: true
+      namn:
+        description: "Valfritt namn på utfilerna (volscreen_<namn>_ohlc.csv)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: volscreen
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas yfinance
+      - run: python -u volhamta.py "${{ inputs.tickers }}" "${{ inputs.namn }}"
+      - name: Spara
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add volscreen*_ohlc.csv volscreen*_info.csv volscreen*_utdelning.csv || true
+          git diff --cached --quiet || git commit -m "Volscreen-data"
+          for i in 1 2 3; do git pull --rebase --autostash origin main && git push && break; sleep 5; done

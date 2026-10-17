@@ -1,0 +1,48 @@
+name: Blankning test
+
+# Provar att hämta FI:s blankningsregister (aggregerade, aktuella och historiska positioner). Manuell.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blankning
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - name: Hämta sidan och prova nedladdningar
+        run: |
+          mkdir -p blankning
+          B=https://www.fi.se/sv/vara-register/blankningsregistret
+          curl -sL -A "Mozilla/5.0" "$B" -o blankning/sida.html -w "sida %{http_code} %{size_download}\n"
+          grep -oiE 'href="[^"]*(Get|download|xlsx|xls|csv)[^"]*"' blankning/sida.html | sort -u | head -20 | tee blankning/lankar.txt
+          for n in GetBlankningsregisterAggregat GetAktuellFile GetHistFile; do
+            curl -sL -A "Mozilla/5.0" "$B/$n/" -o "blankning/$n.bin" -w "$n %{http_code} %{size_download} %{content_type}\n"
+          done
+          ls -la blankning
+      - name: Spara
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add blankning || true
+          git diff --cached --quiet || git commit -m "Blankning test"
+          for i in 1 2 3; do git pull --rebase --autostash origin main && git push && break; sleep 5; done

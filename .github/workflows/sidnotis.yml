@@ -1,0 +1,40 @@
+name: Sidnotis
+
+# Skickar en kort push att bevakningssidan är uppdaterad. Startas av kvällsuppgiften efter publiceringen.
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: "Meddelandetext"
+        required: false
+        default: "Kvällsuppdateringen är klar."
+
+permissions:
+  contents: read
+
+jobs:
+  skicka:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pandas matplotlib
+      - env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TEXT: ${{ inputs.text }}
+        run: python notis.py --sida "$TEXT"

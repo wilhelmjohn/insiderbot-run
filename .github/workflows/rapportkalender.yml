@@ -1,0 +1,55 @@
+name: Rapportkalender
+
+# Hämtar tidigare och kommande rapportdatum (Yahoo) för bolagen i bevakningslistan och sparar rapportkalender.csv.
+# Egen concurrency-grupp och rör bara sin egen fil, så den kan köras medan datahämtningen pågår.
+on:
+  #AV# schedule:
+    #AV# - cron: "20 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rapportkalender
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas yfinance lxml
+      - name: Hämta rapportkalender
+        timeout-minutes: 12
+        run: |
+          set -o pipefail
+          python -u rapportkalender.py 2>&1 | tee rapportkalender_logg.txt
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in rapportkalender.csv rapportkalender_logg.txt; do git add "$f" || true; done
+          git diff --cached --quiet || git commit -m "Rapportkalender $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && break
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 20 + 5))
+          done

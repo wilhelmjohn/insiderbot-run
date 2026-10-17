@@ -1,0 +1,491 @@
+<title>Biotechscreen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: biotech i två delar. Del 1 VAD (pipeline och milstolpar, finansiell uthållighet, ägare) och Del 2 NÄR (katalysatorfönster, tekniska timingindikatorer). Överst en katalysatorkalender, därefter rankad lista där varje bolag fälls ut. */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --surface2:#EAEEF5; --ink:#141B2D; --muted:#59627A; --line:#D6DCE8;
+  --accent:#4A3FCB; --accent-soft:#E7E5FA;
+  --good:#17724A; --good-soft:#DDF1E6; --warn:#8F5A00; --warn-soft:#FBEED2; --bad:#B3261E; --bad-soft:#F8E0DD;
+  --f-disp:"Schibsted Grotesk","Segoe UI",system-ui,sans-serif; --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);margin:0;padding-inline:clamp(16px,4vw,32px);padding-block:20px 48px}
+.wrap{max-width:1080px;margin-inline:auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-disp);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:clamp(26px,4.4vw,36px);line-height:1.1} h2{font-size:19px} h3{font-size:15px}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .small{font-size:13px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 24px}
+header.top p{margin:6px 0 0;max-width:64ch}
+.stamp{font-size:13px;color:var(--muted);text-align:right}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px 22px;align-items:end}
+.calc label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+input[type=text],input[type=number],select{font:14px var(--f-body);padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;width:100%}
+.res{font:500 13px var(--f-mono);color:var(--ink);line-height:1.6}
+.res b{font-weight:600}
+.rules{margin:14px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 22px;font-size:14px}
+.rules li{display:flex;gap:10px}
+.rules .k{flex:0 0 auto;font:500 12px var(--f-mono);padding:2px 7px;border-radius:4px;background:var(--accent-soft);color:var(--accent);height:fit-content;margin-top:2px}
+.bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:5px 12px;font:500 13px var(--f-body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.chip:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.rowhead{all:unset;box-sizing:border-box;display:grid;grid-template-columns:28px minmax(150px,1.1fr) 178px minmax(0,2fr) 96px;gap:6px 14px;align-items:center;width:100%;padding:12px 14px;cursor:pointer}
+.rowhead:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
+.rk{font:500 12px var(--f-mono);color:var(--muted)}
+.nm b{font-weight:600} .nm .sub{display:block;font-size:12px;color:var(--muted)}
+.score{display:flex;align-items:center;gap:10px}
+.score .n{font:600 22px var(--f-disp);width:32px;text-align:right;font-variant-numeric:tabular-nums}
+.sb{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.sb .b{display:grid;grid-template-columns:24px 1fr 22px;gap:6px;align-items:center;font:500 11px var(--f-mono);color:var(--muted)}
+.sb .b b{font-weight:500;color:var(--ink);text-align:right}
+.track{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--accent)}
+.track.n i{background:#0F7C8A}
+.pills{display:flex;flex-wrap:wrap;gap:5px}
+.pill{font:600 12px/1.2 var(--f-body);padding:3px 8px;border-radius:5px;white-space:nowrap}
+.pill.hard{background:var(--bad-soft);color:var(--bad)} .pill.mjuk{background:var(--warn-soft);color:var(--warn)} .pill.upp{background:var(--good-soft);color:var(--good)} .pill.ok{background:var(--surface2);color:var(--muted)}
+.px{text-align:right;font:500 14px var(--f-mono)} .px small{display:block;font-size:12px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.detail{padding:6px 14px 16px;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 28px}
+.part{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:14px 0 0;padding:8px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink)}
+.part.n{background:var(--surface2)}
+.part b{font:700 15px var(--f-disp);letter-spacing:.02em}
+.part span{font-size:13px;color:var(--muted)}
+.part .sc{margin-left:auto;font:600 13px var(--f-mono);color:var(--ink)}
+.sub3{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sub3 .m{font:500 12px var(--f-mono);color:var(--muted);white-space:nowrap}
+.badge{display:inline-block;font:600 12px/1.2 var(--f-body);padding:3px 8px;border-radius:5px;background:var(--surface2);color:var(--ink);margin:0 4px 4px 0}
+.badge.a{background:var(--accent-soft);color:var(--accent)}
+.warnc{color:var(--warn)}
+.tl svg{display:block;width:100%;height:auto}
+.tl .big{font:600 26px var(--f-disp);font-variant-numeric:tabular-nums}
+.kal{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.kr{all:unset;box-sizing:border-box;display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
+.kr:hover{background:var(--surface2)} .kr:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.kr .dt{font:500 12px var(--f-mono);line-height:1.3} .kr .dt small{display:block;color:var(--muted);font-size:11px}
+.kr .tx{font-size:13px;min-width:0} .kr .tx b{font-weight:600}
+.kr .vn{font:500 12px var(--f-mono);color:var(--muted);text-align:right;white-space:nowrap}
+.kr.sw{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.rsi svg{display:block;width:100%;height:auto;margin-top:2px}
+@media (max-width:820px){.detail{grid-template-columns:minmax(0,1fr)}}
+.detail h3{margin:14px 0 6px;display:flex;gap:8px;align-items:baseline}
+.detail h3 .no{font:500 11px var(--f-mono);color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 6px}
+.kv{width:100%;border-collapse:collapse}
+.kv td{padding:5px 4px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+.kv td:first-child{color:var(--muted);padding-right:10px}
+.kv td:last-child{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.wl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.wl li{font-size:13px;display:flex;gap:8px}
+.wl .pill{flex:0 0 auto;height:fit-content}
+.ev{font-size:13px;margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.ev li{display:flex;gap:10px}
+.ev a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.ev .d{flex:0 0 auto;font:500 12px var(--f-mono);background:var(--surface2);border-radius:4px;padding:1px 6px;height:fit-content}
+.chartbox{grid-column:1/-1;padding-top:6px}
+.ch-top{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:space-between;align-items:center;margin-bottom:6px}
+.seg{display:flex;gap:4px}
+.seg button{font:500 12px var(--f-body);padding:4px 10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:5px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.ro{font:12px var(--f-mono);color:var(--muted);min-height:18px;overflow-wrap:anywhere}
+.cv svg{display:block;width:100%;height:auto;touch-action:pan-y}
+svg text{fill:var(--muted);font:11px var(--f-mono)}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+details.how{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+details.how summary{cursor:pointer;font-weight:600}
+details.how .g{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px 24px;margin-top:12px;font-size:14px}
+details.how p{margin:0}
+footer{font-size:13px;color:var(--muted);max-width:80ch}
+@media (max-width:820px){
+  .kr{grid-template-columns:64px minmax(0,1fr)} .kr .vn{grid-column:2;text-align:left}
+  .rowhead{grid-template-columns:24px minmax(0,1fr) 96px;grid-template-areas:"rk nm px" "rk sc sc" "rk pl pl"}
+  .rowhead .rk{grid-area:rk;align-self:start;padding-top:3px}
+  .rowhead .nm{grid-area:nm}.rowhead .score{grid-area:sc}.rowhead .pills{grid-area:pl}.rowhead .px{grid-area:px}
+}
+.sf{padding:2px 14px 12px 56px;display:flex;flex-direction:column;gap:4px}
+.sf-kort{margin:0;font-size:14px;line-height:1.5;max-width:100ch;text-wrap:pretty}
+.sf-tk{margin:2px 0 0;font-size:14px;line-height:1.5;max-width:100ch;text-wrap:pretty;border-left:3px solid var(--accent);padding:1px 0 1px 10px}
+.sf-tk b{font:700 12px var(--f-body);letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-right:6px}
+.sf-tk em{font-style:normal;color:var(--muted);font-size:12px}
+.sf-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.sf-tog{all:unset;box-sizing:border-box;cursor:pointer;font:600 13px var(--f-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px;padding:4px 0}
+.sf-tog:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.sf-long{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 28px;margin-top:4px;padding-top:6px;border-top:1px dashed var(--line)}
+.sf-long h4{font:700 13px var(--f-disp);margin:12px 0 6px;letter-spacing:.01em;display:flex;gap:4px 8px;align-items:baseline;flex-wrap:wrap}
+.sf-long h4 em{font:500 12px var(--f-body);font-style:normal;color:var(--muted)}
+.sf-long p{margin:0;font-size:14px;line-height:1.55;text-wrap:pretty}
+.sf-long ul{margin:0;padding-left:18px;font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:5px}
+.sf-long .ev{padding-left:0;font-size:13px}
+.sf-long a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.sf-tolk{border-left:3px solid var(--accent);background:var(--accent-soft);padding:8px 12px;border-radius:0 8px 8px 0}
+.sf-stale{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+.sf-note{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:10px}
+@media (max-width:820px){.sf{padding-left:14px}.sf-long{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:no-preference){.track i{transition:width .3s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Biotech och läkemedel · Stockholmsbörsen</div>
+      <h1>Biotechscreen</h1>
+      <p class="muted">Två frågor per bolag. <b>Vad:</b> är bolaget värt att äga inför en händelse (pipeline och milstolpar, kassa, ägare)? <b>När:</b> är tidpunkten rätt (katalysatorfönster, RSI, glidande medelvärden, konsolidering och volym)? Samlad poäng kräver båda. Under varje bolag finns en kort sammanfattning av vad som hänt och varför, med längre text bakom <b>Läs mer</b>.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <section class="panel" aria-labelledby="sekh">
+    <h2 id="sekh">Sektor och bransch</h2>
+    <p class="small muted" style="margin:6px 0 10px">Så har sektorn rört sig, så att kurserna kan läsas mot den. XBI är en amerikansk biotech-ETF och OMXSPI är hela Stockholmsbörsen. Under varje bolag står bolagets över- eller underavkastning mot båda och hur stor del av dagsrörelserna som indexet förklarar (lågt värde betyder att kursen styrs av bolagets egna nyheter).</p>
+    <div id="sek"></div>
+    <h3 style="margin-top:16px">Branschkalender</h3>
+    <ul class="ev" id="bransch"></ul>
+    <p class="small muted" style="margin:8px 0 0">Datum för EMA:s CHMP-möten (rekommendationer om EU-godkännande) och stora kongresser, där studiedata ofta presenteras. De gäller branschen, inte ett enskilt bolag, och ingår inte i poängen.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="kh">
+    <div class="bar"><h2 id="kh" style="margin-right:auto">Katalysatorkalender</h2>
+      <span class="seg" id="kseg"><button data-k="90" aria-pressed="false">90 d</button><button data-k="180" aria-pressed="true">180 d</button><button data-k="365" aria-pressed="false">1 år</button></span></div>
+    <p class="small muted" style="margin:6px 0 0">Kommande händelser med datum eller period (kvartal), sorterade i tid. Ramen markerar <b>sweet spot</b>: datumsatt händelse i fas 2 eller 3 som ligger 45–70 dagar fram. Då brukar spekulativ volym börja byggas men kursen har ännu inte rusat. Klicka på en rad för att öppna bolaget.</p>
+    <div class="kal" id="kal"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="ch">
+    <h2 id="ch">Posten du kan ta</h2>
+    <p class="small muted" style="margin:6px 0 14px">Ett misslyckat studieresultat kan ta bort 50–80 % på en dag och då hjälper inget stop-loss. Räkna därför ut posten utifrån vad du tål att förlora.</p>
+    <div class="calc">
+      <label for="kap">Kapital i biotech (kr)<input type="number" id="kap" value="100000" min="1000" step="5000" inputmode="numeric"></label>
+      <label for="pct">Del per bolag (%)<input type="number" id="pct" value="1.5" min="0.1" max="10" step="0.1" inputmode="decimal"></label>
+      <label for="fall">Tänkt fall vid dåligt besked (%)<input type="number" id="fall" value="70" min="10" max="100" step="5" inputmode="numeric"></label>
+      <div class="res" id="res"></div>
+    </div>
+    <ul class="rules">
+      <li><span class="k">Post</span><span>Håll varje bolag på 1–2 % av hela kapitalet och sprid på många bolag.</span></li>
+      <li><span class="k">Besked</span><span>Ta hem en del av vinsten innan ett binärt besked och låt resten ligga.</span></li>
+      <li><span class="k">Rusat</span><span>Köp inte efter att kursen redan gått upp 40 % på 20 dagar, eller när RSI ligger över 70.</span></li>
+      <li><span class="k">Kassa</span><span>Under 6–9 månaders kassa räknar du med en akut emission, ofta med stor rabatt.</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="lh" style="display:flex;flex-direction:column;gap:12px">
+    <div class="bar">
+      <h2 id="lh" style="margin-right:auto">Bolag</h2>
+      <input type="text" id="q" placeholder="Sök bolag, ticker eller text" aria-label="Sök bolag, ticker eller text i sammanfattningarna" style="width:220px">
+      <span class="seg" id="sfseg" role="group" aria-label="Sammanfattningar"><button data-sfm="kort" aria-pressed="true">Kort</button><button data-sfm="lang" aria-pressed="false">Alla utfällda</button><button data-sfm="av" aria-pressed="false">Dolda</button></span>
+      <select id="sort" aria-label="Sortering" style="width:auto">
+        <option value="samlad">Sortera: samlad poäng</option>
+        <option value="vad">Sortera: Vad (grund)</option>
+        <option value="nar">Sortera: När (timing)</option>
+        <option value="besked">Sortera: närmast besked</option>
+        <option value="runway">Sortera: längst kassa</option>
+        <option value="ret20">Sortera: minst uppgång 20 d</option>
+        <option value="kop">Sortera: störst insynsköp (6 mån)</option>
+      </select>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Filter"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <details class="how">
+    <summary>Så räknas poängen</summary>
+    <div class="g">
+      <p><b>Samlad poäng</b> är geometriskt medelvärde av Vad och När, så båda måste vara höga. Den mäter förutsättningar, inte sannolikhet: ett högt värde betyder inte att bolaget kommer att stiga.</p>
+      <p><b>Del 1 · Vad (100 p.)</b> Pipeline och milstolpar 35, finansiell uthållighet 35, ägare och kvalitet 30.</p>
+      <p><b>Fas, 15 p.</b> Fas 2 och 3 ger 15 (historiskt bäst risk/reward inför milstolpar), registrering 12, fas 1 8, kommersiell 6, preklinik 3. Bolagets fas är den längst gångna aktiva projektfasen i pipelinefilen.</p>
+      <p><b>Katalysator, 12 p.</b> Datumsatt händelse inom 30 dagar ger 12, inom 90 dagar 10, inom 180 dagar 6. Bara en period känd (till exempel andra halvåret): högst 5. Bara rapportdatum: 3.</p>
+      <p><b>Marknadspotential, 8 p.</b> Särläkemedelsstatus (Orphan Drug Designation, FDA eller EMA) ger 4. Obesvarat medicinskt behov enligt bolag eller myndighet ger 4. Okänt ger 0.</p>
+      <p><b>Kassa (runway), 35 p.</b> Kassa inklusive kortfristiga placeringar delat på årlig förbrukning (kvartalsburn × 4): 24 månader eller mer ger 35, 18–24 ger 29, 12–18 ger 21, 9–12 ger 12, 6–9 ger 5, under 6 ger 0. Självfinansierade ger 35. Över 30 % fler aktier på ett år drar 5, utestående konvertibel eller lån drar 3 och utestående TO till investerare eller långivare drar 2.</p>
+      <p><b>Ägare och kvalitet, 30 p.</b> Insynsköp senaste 180 dagarna (över 1 MSEK 12, över 250 kSEK 8) · specialistägare (life science-fonder eller riskkapital bland de största ägarna) 8, annars institutioner över 20 % 5 · blankning 5 (hög blankning tillsammans med insynsköp, alltså klämrisk för blankarna) · likviditet 5.</p>
+      <p><b>Del 2 · När (100 p.)</b> Katalysatorfönster 35, trend 20, RSI 15, konsolidering och volym 20, ej redan rusat 10.</p>
+      <p><b>Katalysatorfönster, 35 p.</b> Datumsatt händelse 45–70 dagar fram ger 35, 30–90 dagar 27, 15–29 dagar 18, under 15 dagar 8, längre än 90 dagar 5. Planerad period utan datum ger högst 12.</p>
+      <p><b>Trend, 20 p.</b> Kurs över SMA 20 och SMA 50 och SMA 20 över SMA 50 ger 20. Över båda ger 14. Bara över SMA 50 ger 8.</p>
+      <p><b>RSI, 15 p.</b> RSI(14) mellan 40 och 65 ger 15, 65–70 ger 10, över 70 (överköpt) 0. Positiv divergens, alltså lägre botten i kursen men högre botten i RSI under de senaste 40 dagarna, ger 15.</p>
+      <p><b>Konsolidering och volym, 20 p.</b> Kursen rör sig sidledes (högsta minus lägsta senaste 20 dagar högst 15 % av kursen och uppgång högst 12 %) och volymen stiger försiktigt (10-dagarssnitt 1,15–2,5 gånger snittet de 40 dagarna innan) ger 20. Bara snäv konsolidering ger 10.</p>
+      <p><b>Ej redan rusat, 10 p.</b> Uppgång på 20 dagar: högst 10 % ger 10, upp till 25 % ger 6, upp till 40 % ger 2.</p>
+      <p><b>Sammanfattningarna</b> ingår inte i poängen. De är skrivna av Claude utifrån pressmeddelanden, rapporter, kurs- och insynsdata och uppdateras på kvällskörningen när något väsentligt hänt (nytt viktigt pressmeddelande, kursrörelse över 15 %, nya insynsaffärer eller text äldre än 35 dagar). <b>Belagt</b> är uppgifter som går att kontrollera mot källorna under texten. <b>Tolkning</b> är en bedömning och inte fakta. Orsaker som inte går att belägga står som okända i stället för att gissas.</p>
+      <p><b>Studieregistret.</b> Fas 2- och fas 3-studier där bolaget är huvudsponsor hämtas från ClinicalTrials.gov. Studiens beräknade primära slutdatum (inom ett år) räknas som en planerad händelse med låg vikt, eftersom resultat oftast redovisas 1–4 månader efter. Avbrutna eller pausade fas 2/3-studier ger varning, och en studie som slutat rekrytera och passerat sitt slutdatum utan resultat ger en signal om att data kan vara nära. Registret uppdateras av bolagen själva och kan släpa.</p>
+      <p><b>Sektorn.</b> Bolagets över- eller underavkastning mot XBI och OMXSPI och indexets förklaringsgrad (R², dagsavkastning senaste året, XBI med en dags fördröjning eftersom USA stänger efter Stockholm) visas under Tekniska timingindikatorer. De ingår inte i poängen.</p>
+      <p><b>Fas och sannolikhet.</b> Procenten vid en händelse är branschsnitt för att läkemedelsprojekt klarar nästa steg (fas 1 ca 52 %, fas 2 ca 29 %, fas 3 ca 58 %, registrering ca 90 %). Det säger inget om det enskilda bolagets data eller om kursen: marknaden har oftast redan räknat in en del av chansen.</p>
+    </div>
+  </details>
+
+  <footer>
+    Kurs, kassa, kassaflöde, skulder, aktieantal och ägarandelar kommer från Yahoo Finance och kan vara försenade eller felaktiga för små bolag. Insynsköp och blankning kommer från Finansinspektionen. Pipeline, särläkemedelsstatus, medicinskt behov, teckningsoptioner, konvertibler och ägarlistor är inlagda för hand från bolagens rapporter och pressmeddelanden (källa och datum visas per bolag) och kan vara inaktuella. Pressmeddelanden hämtas från MFN och Cision. Studiedata kommer från ClinicalTrials.gov (U.S. National Library of Medicine) och sektorindex (XBI, OMXSPI) från Yahoo Finance. Sammanfattningarna är skrivna av en AI-modell (Claude) och kan innehålla fel eller missa sådant som inte finns i underlaget.
+    Detta är ingen investeringsrådgivning. Biotech är bland de mest riskfyllda aktierna och du kan förlora hela insatsen.
+  </footer>
+</div>
+
+<script>
+const DATA = /*DATA*/;
+const A = DATA.aktier;
+const $ = id=>document.getElementById(id);
+const esc = s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (x,d=0)=>x==null||Number.isNaN(x)?"–":Number(x).toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
+const sgn = (x,d=1)=>x==null?"–":(x>0?"+":"")+fmt(x,d);
+const cls = x=>x>0?"pos":x<0?"neg":"";
+const sum = o=>Object.values(o).reduce((a,b)=>a+b,0);
+const state = {f:"alla", q:"", sort:"samlad", open:new Set(), sm:new Set(), sfhide:false, rng:260, kal:180, kall:false};
+const byT = Object.fromEntries(A.map(z=>[z.t,z]));
+A.forEach(z=>{z._s=(z.namn+" "+z.t+" "+(z.sf?[z.sf.kort,z.sf.tolk_kort,z.sf.bild,z.sf.tolkning,...z.sf.belagt,...(z.sf.bevaka||[])].join(" "):"")).toLowerCase()});
+$("stamp").innerHTML = `Kurser till ${DATA.datum[DATA.datum.length-1]}<br>Skärmen byggd ${DATA.genererad}`;
+
+function calc(){
+  const k=+$("kap").value||0, p=(+$("pct").value||0)/100, f=(+$("fall").value||0)/100;
+  const post=k*p;
+  $("res").innerHTML = `Post per bolag: <b>${fmt(post)} kr</b><br>Förlust vid −${fmt(f*100)} %: <b>${fmt(post*f)} kr</b> (${fmt(p*f*100,2)} % av kapitalet)`;
+  return post;
+}
+const FILT=[["alla","Alla"],["bra","Bra grund och timing"],["fas23","Fas 2/3"],["sweet","Sweet spot (fas 2/3, 45–70 d)"],["fonster","Katalysator 30–90 d"],["besked","Daterat besked inom 90 d"],
+  ["kassa","Kassa 12 mån+ eller självfinansierad"],["insid","Insynsköp 6 mån"],["spec","Specialistägare"],["orphan","Särläkemedel"],["ack","Ackumulering eller divergens"],["nytt","Nytt pressmeddelande ≤7 d"],["lugn","Utan röd varning"]];
+function ok(z){
+  const hard=z.ned.some(w=>w.sev==="hard"), d=z.besked_dagar, t=z.tek;
+  switch(state.f){
+    case "alla": return true;
+    case "bra": return z.vad>=50&&z.nar>=50&&!hard;
+    case "fas23": return z.fas23;
+    case "sweet": return z.sweet;
+    case "fonster": return d!=null&&d>=30&&d<=90;
+    case "besked": return d!=null&&d<=90;
+    case "kassa": return z.sjalvfin||(z.runway!=null&&z.runway>=12);
+    case "insid": return z.kop180>=250000;
+    case "spec": return z.specialist;
+    case "orphan": return z.orphan==="Ja";
+    case "ack": return (t.tight&&t.volstiger)||t.diverg;
+    case "nytt": return z.pm_ny>0;
+    case "lugn": return !hard;
+  }
+}
+function chips(){
+  $("chips").innerHTML=FILT.map(([k,l])=>`<button class="chip" data-f="${k}" aria-pressed="${state.f===k}">${l} · ${A.filter(z=>{const s=state.f;state.f=k;const r=ok(z);state.f=s;return r}).length}</button>`).join("");
+}
+function sorter(){
+  const s=state.sort, big=1e9;
+  const v={samlad:z=>-z.samlad,vad:z=>-z.vad,nar:z=>-z.nar,besked:z=>z.besked_dagar==null?big:z.besked_dagar,runway:z=>z.sjalvfin?-big:z.runway==null?big:-z.runway,ret20:z=>z.ret20,kop:z=>-z.kop180}[s];
+  return (a,b)=>v(a)-v(b);
+}
+function rad(z,i){
+  const open=state.open.has(z.t);
+  const ord={hard:0,upp:1,mjuk:2};
+  const all=[...z.ned.map(w=>({k:w.sev,l:w.l,t:w.t})),...z.upp.map(u=>({k:"upp",l:u.l,t:u.t}))].sort((a,b)=>ord[a.k]-ord[b.k]);
+  const pills=all.map(w=>`<span class="pill ${w.k}" title="${esc(w.t)}">${esc(w.l)}</span>`);
+  const head=`<button class="rowhead" data-t="${z.t}" aria-expanded="${open}">
+    <span class="rk">${i+1}</span>
+    <span class="nm"><b>${esc(z.namn)}</b><span class="sub">${esc(z.t.replace(".ST",""))}${z.mc>0?" · "+fmt(z.mc,1)+" Mdr":""} · ${esc(z.lead)}${z.orphan==="Ja"?" · särläkemedel":""}</span></span>
+    <span class="score" title="${esc(z.lage)}"><span class="n">${z.samlad}</span><span class="sb">
+      <span class="b"><span>Vad</span><span class="track"><i style="width:${z.vad}%"></i></span><b>${z.vad}</b></span>
+      <span class="b"><span>När</span><span class="track n"><i style="width:${z.nar}%"></i></span><b>${z.nar}</b></span></span></span>
+    <span class="pills">${pills.slice(0,6).join("")||'<span class="pill ok">Inga signaler</span>'}</span>
+    <span class="px">${fmt(z.kurs,2)}<small class="${cls(z.d1)}">${sgn(z.d1)} %</small></span></button>`;
+  return `<div class="item">${head}${sfblock(z)}${open?detalj(z):""}</div>`;
+}
+const klipp=(s,n)=>s.length<=n?s:s.slice(0,n).replace(/\s+\S*$/,"")+"…";
+const httpsOk=u=>/^https:\/\//.test(u||"");
+const SFL={FDA:"FDA/EMA",Studieresultat:"Studie",Emission:"Emission",Avtal:"Avtal",Godkännande:"Godkännande",Varning:"Varning",Insiderinfo:"Insiderinfo",Notering:"Notering",Ägare:"Ägare",Återköp:"Återköp"};
+const lank=(u,tx)=>httpsOk(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(tx)}</a>`:esc(tx);
+function sfblock(z){
+  const s=z.sf; if(!s||state.sfhide) return "";
+  const o=state.sm.has(z.t);
+  const nytt=s.stale?`<span class="pill mjuk" title="Det har hänt något sedan texten skrevs. Se Nytt sedan texten skrevs under Läs mer.">Nytt sedan texten</span>`:"";
+  return `<div class="sf"><p class="sf-kort">${esc(s.kort)}</p>
+    ${s.tolk_kort?`<p class="sf-tk"><b>Min tolkning</b>${esc(s.tolk_kort)} <em>(bedömning, inte fakta)</em></p>`:""}
+    <div class="sf-row"><button class="sf-tog" data-t="${z.t}" aria-expanded="${o}" aria-controls="sfl-${z.t}">${o?"Visa mindre":"Läs mer"}</button><span class="small muted">Text skriven ${esc(s.upd)}</span>${nytt}</div>
+    ${o?sflong(z):""}</div>`;
+}
+function sflong(z){
+  const s=z.sf, ny=s.ny, kvt=rows=>`<table class="kv">${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>`;
+  const body=x=>`<span style="font-family:var(--f-body)">${x}</span>`;
+  const e0=z.besked[0];
+  const nyckel=kvt([
+    ["Kurs",`${fmt(z.kurs,2)} kr <span class="${cls(z.d1)}">(${sgn(z.d1)} % idag)</span>`],
+    ["Från årstopp",`<span class="${cls(z.fran_topp)}">${sgn(z.fran_topp,0)} %</span>`],
+    ["Uppgång 20 d / 60 d / 1 år",`<span class="${cls(z.ret20)}">${sgn(z.ret20,0)} %</span> / <span class="${cls(z.ret60)}">${sgn(z.ret60,0)} %</span> / <span class="${cls(z.ret250)}">${sgn(z.ret250,0)} %</span>`],
+    ["Börsvärde",z.mc>0?`${fmt(z.mc,2)} Mdr SEK`:"saknas hos Yahoo"],
+    ["Kassa (Yahoo, kan släpa)",z.cash==null?"–":`${fmt(z.cash)} MSEK · ${z.sjalvfin?"klassad som självfinansierad":z.runway==null?"–":fmt(z.runway,0)+" mån"}`],
+    ["Insynsköp 180 d",z.kop180?`${fmt(z.kop180/1e6,2)} MSEK (${z.kop180_n} köp)`:"inga"],
+    ["Blankat",z.blank==null?"–":fmt(z.blank,2)+" %"],
+    ["Nästa händelse",e0?body(`${esc(klipp(e0.h,90))} · ${e0.dg} d`):"ingen inlagd"]]);
+  let nytt="";
+  if(ny){
+    const li=[];
+    if(ny.pct==null) li.push(`<li>Inga nya handelsdagar sedan dess.</li>`);
+    else li.push(`<li>Kurs <b class="${cls(ny.pct)}">${sgn(ny.pct,1)} %</b> sedan ${esc(ny.sedan)} (${fmt(ny.kurs0,2)} → ${fmt(ny.kurs,2)} kr)${ny.dagx!=null&&Math.abs(ny.dagx)>=10?`; största dagsrörelse ${sgn(ny.dagx,0)} % den ${esc(ny.dagd)}`:""}.</li>`);
+    if(ny.pm.length) li.push(`<li>${ny.pm_n} nya pressmeddelanden${ny.pm_n>ny.pm.length?` (visar ${ny.pm.length})`:""}:<ul class="ev" style="margin-top:4px">${ny.pm.map(p=>`<li><span class="d">${esc(p.d.slice(5))}</span><span>${lank(p.l,p.r)}${p.f.length?`<br>${p.f.map(f=>`<span class="pill ${f==="Varning"?"hard":f==="Emission"||f==="Notering"?"mjuk":"upp"}">${esc(SFL[f]||f)}</span>`).join(" ")}`:""}</span></li>`).join("")}</ul></li>`);
+    else li.push(`<li>Inga nya pressmeddelanden.</li>`);
+    if(ny.ins_n) li.push(`<li>Nya insynsaffärer: ${ny.ins_n} st, köp ${fmt(ny.kop/1e3,0)} kSEK, försäljning ${fmt(ny.sal/1e3,0)} kSEK.</li>`);
+    else li.push(`<li>Inga nya insynsaffärer.</li>`);
+    nytt=`<h4>Nytt sedan texten skrevs <em>jämfört med kursdata till ${esc(ny.sedan)}</em></h4>${s.stale?`<p class="sf-stale">Det har hänt något väsentligt sedan texten skrevs. Texten ses över vid nästa kvällskörning.</p>`:""}<ul style="margin-top:6px">${li.join("")}</ul>`;
+  }
+  const kall=s.kallor.map(k=>`<li>${lank(k[1],k[0])}</li>`).join("");
+  return `<div class="sf-long" id="sfl-${z.t}">
+    <div><h4>Vad hände</h4><p>${esc(s.bild)}</p>
+      <h4>Belagt <em>uppgifter som går att kontrollera mot källorna</em></h4><ul>${s.belagt.map(b=>`<li>${esc(b)}</li>`).join("")}</ul></div>
+    <div><h4>Tolkning <em>min bedömning, inte fakta</em></h4><p class="sf-tolk">${esc(s.tolkning)}</p>
+      ${s.bevaka&&s.bevaka.length?`<h4>Bevaka <em>vad som kan ändra bilden</em></h4><ul>${s.bevaka.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`:""}
+      <h4>Nyckeltal nu <em>räknas om vid varje bygge</em></h4>${nyckel}
+      ${nytt}
+      <h4>Källor</h4><ul>${kall}</ul></div>
+    <p class="sf-note">Skriven av Claude (AI) ${esc(s.upd)} utifrån pressmeddelanden, rapporter, kurs- och insynsdata. Tolkning och Bevaka är min bedömning. Orsaker som inte går att belägga är markerade som okända. Ingen investeringsrådgivning.</p>
+  </div>`;
+}
+function sfseg(){
+  const n=state.sm.size, m=state.sfhide?"av":n===A.length?"lang":n===0?"kort":"";
+  document.querySelectorAll("#sfseg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.sfm===m)));
+}
+function tidslinje(z){
+  const W=420,H=58,x=d=>10+(W-20)*Math.min(Math.max(d,0),120)/120, d=z.besked_dagar, p=z.plan_dagar;
+  const zon=`<rect x="${x(30)}" y="14" width="${x(90)-x(30)}" height="16" rx="3" fill="var(--accent)" opacity=".14"/><rect x="${x(45)}" y="14" width="${x(70)-x(45)}" height="16" rx="3" fill="var(--accent)" opacity=".34"/><line x1="10" x2="${W-10}" y1="22" y2="22" stroke="var(--line)"/>`;
+  const tk=[0,30,45,70,90,120].map(v=>`<line x1="${x(v)}" x2="${x(v)}" y1="30" y2="35" stroke="var(--muted)"/><text x="${x(v)}" y="47" text-anchor="middle">${v}${v===120?"+":""}</text>`).join("");
+  const mk=d!=null?`<path d="M${x(d)} 31l-6 -17h12z" fill="var(--good)"/>`:p!=null?`<circle cx="${x(p)}" cy="22" r="5" fill="var(--surface)" stroke="var(--good)" stroke-width="2"/>`:"";
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Dagar till katalysator">${zon}${tk}${mk}</svg>`;
+}
+function detalj(z){
+  const post=calc(), ant=Math.floor(post/z.kurs), PV=z.PV, PN=z.PN, t=z.tek;
+  const sc1=PV.fas+PV.katalysator+PV.potential, sc2=PV.kassa, sc3=PV.insider+PV.agare+PV.blankning+PV.likviditet, sn1=PN.fonster, sn2=PN.trend+PN.rsi+PN.konsolidering+PN.rusat;
+  const kv=rows=>`<table class="kv">${rows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table>`;
+  const jn=v=>v==="Ja"?'<span class="pos">Ja</span>':v==="Nej"?"Nej":'<span class="muted">Okänt</span>';
+  // 1.1 pipeline
+  const ev=z.besked.length?`<ul class="ev">${z.besked.map(e=>`<li><span class="d">${e.dg} d</span><span><b>${esc(e.h)}</b><br><span class="muted">${esc(e.d)} · ${esc(e.typ)}${e.k?" · "+esc(e.k):""}${e.s?" · "+esc(e.s):""}</span>${e.fas?`<br><span class="small">Fas: <b>${esc(e.fas)}</b>${e.p!=null?` · branschsnitt: ca ${e.p} % klarar steget`:""}</span>`:""}</span></li>`).join("")}</ul>`:`<p class="small muted" style="margin:0">Ingen händelse inlagd. Läs bolagets pipeline och senaste rapport för tidplan för studier och godkännanden.</p>`;
+  const pipe=z.pipeline.length?`<h3 style="margin-top:14px">Pipeline</h3><table class="kv">${z.pipeline.map(p=>`<tr><td>${esc(p.p)}<br><span class="small">${esc(p.i)}${p.fas?" · "+esc(p.fas):" · ingen aktiv fas"}</span></td><td style="font-family:var(--f-body);text-align:right">${esc(p.m||"–")}<br><span class="small muted">${p.pr!=null?"branschsnitt ca "+p.pr+" %":""}</span></td></tr>`).join("")}</table><p class="small muted" style="margin:6px 0 0">Källa: ${esc([...new Set(z.pipeline.map(p=>p.k).filter(Boolean))].join("; ")||"–")}. Uppdaterad ${esc(z.pipeline.map(p=>p.u).sort().slice(-1)[0])}.</p>`:`<p class="small muted" style="margin:14px 0 0">Ingen pipeline inlagd för bolaget än.</p>`;
+  const FL={FDA:"FDA/EMA",Studieresultat:"Studie",Emission:"Emission",Avtal:"Avtal",Godkännande:"Godkännande",Varning:"Varning",Insiderinfo:"Insiderinfo",Notering:"Notering",Ägare:"Ägare",Återköp:"Återköp"};
+  const pmh=z.pm&&z.pm.length?`<h3 style="margin-top:14px">Senaste pressmeddelanden</h3><ul class="ev">${z.pm.map(p=>`<li><span class="d">${p.dg} d</span><span>${/^https:\/\//.test(p.l)?`<a href="${esc(p.l)}" target="_blank" rel="noopener">${esc(p.r)}</a>`:esc(p.r)}${p.f.length?`<br>${p.f.map(f=>`<span class="pill ${f==="Varning"?"hard":f==="Emission"||f==="Notering"?"mjuk":"upp"}">${esc(FL[f]||f)}</span>`).join(" ")}`:""}</span></li>`).join("")}</ul><p class="small muted" style="margin:6px 0 0">Källa: MFN/Cision, hämtas varannan timme på vardagar. Flaggorna är sökord i rubriken, inte en bedömning.</p>`:"";
+  const fas=`<div style="margin:2px 0 8px"><span class="badge a">Längst gången: ${esc(z.lead)}</span>${z.fas_lista.filter(f=>f!==z.lead).map(f=>`<span class="badge">${esc(f)}</span>`).join("")}${z.fas23?'<span class="badge a">Fas 2/3: bäst risk/reward</span>':""}</div>`;
+  const pot=kv([["Huvudindikation",esc(z.indikation||"–")],["Särläkemedel (Orphan Drug)",jn(z.orphan)+(z.orphan_d?`<br><span class="small" style="font-family:var(--f-body)">${esc(z.orphan_d)}</span>`:"")],["Obesvarat medicinskt behov",jn(z.behov)+(z.behov_t?`<br><span class="small" style="font-family:var(--f-body)">${esc(z.behov_t)}</span>`:"")]]);
+  // 1.2 finans
+  const rw=z.sjalvfin?"självfinansierad":z.runway==null?"–":fmt(z.runway,0)+" mån";
+  const rc=z.sjalvfin||(z.runway!=null&&z.runway>=12)?"pos":z.runway!=null&&z.runway>=9?"warnc":z.runway!=null?"neg":"";
+  const fin=kv([
+    ["Kassa inkl. placeringar",z.cash==null?"–":fmt(z.cash)+" MSEK"],
+    ["Förbrukning (kvartal × 4)",z.sjalvfin?"positivt kassaflöde":z.burn==null?"–":"−"+fmt(z.burn)+" MSEK/år"],
+    ["Runway = kassa ÷ förbrukning",`<b class="${rc}">${rw}</b>`],
+    ["Skulder (Yahoo, inkl. leasing)",z.skuld==null?"–":fmt(z.skuld)+" MSEK"],
+    ["Utestående TO till investerare/långivare",jn(z.to_ext)],
+    ["Konvertibel eller lån",jn(z.konv_lan)],
+    ["Fler aktier, 1 år / 3 år",(z.utsp1==null?"–":sgn(z.utsp1,0)+" %")+" / "+(z.utsp3==null?"–":sgn(z.utsp3,0)+" %")],
+    ["Omsättning (12 mån)",z.rev==null?"–":fmt(z.rev)+" MSEK"]])+(z.to_text?`<p class="small" style="margin:8px 0 0"><b>Teckningsoptioner och konvertibler:</b> ${esc(z.to_text)}</p>`:"");
+  // 1.3 ägare
+  const agare=kv([
+    ["Insynsköp 90 d / 180 d",`${z.kop?fmt(z.kop/1e6,2)+" MSEK":"inga"} / ${z.kop180?fmt(z.kop180/1e6,2)+" MSEK ("+z.kop180_n+" köp)":"inga"}`],
+    ["Insiderförsäljning 90 d",z.sal?fmt(z.sal/1e6,2)+" MSEK":"inga"],
+    ["Specialistägare",z.specialist?'<span class="pos">Ja</span>':"Inga funna bland de största"],
+    ["Institutioner äger",z.inst==null?"–":fmt(z.inst,0)+" %"],
+    ["Ledning/styrelse äger",z.insid==null?"–":fmt(z.insid,0)+" %"],
+    ["Blankat",z.blank==null?"–":fmt(z.blank,2)+" %"+(z.blank_f!=null?" ("+sgn(z.blank_f,1)+" pp)":"")],
+    ["Analytiker",z.analytiker?z.analytiker+" st, snittmål "+fmt(z.mal,2):"–"]])+(z.agare_text&&z.agare_text!=="Okänt"?`<p class="small" style="margin:8px 0 0"><b>Största ägare:</b> ${esc(z.agare_text)}</p>`:"");
+  const kalla=z.bolag_kalla?`<p class="small muted" style="margin:8px 0 0">Källa för särläkemedel, behov, TO/konvertibler och ägare (inlagt för hand ${esc(z.pipeline.length?"2026-10-10":"")}): ${esc(z.bolag_kalla)}.</p>`:"";
+  // 2.1 fönster
+  const dtxt=z.besked_dagar!=null?`<span class="big">${z.besked_dagar}</span> dagar till datumsatt händelse`:z.plan_dagar!=null?`<span class="big">ca ${z.plan_dagar}</span> dagar till planerad milstolpe (bara period känd)`:`<span class="big">–</span> ingen känd händelse`;
+  const rap=z.rapport!=null?`<p class="small" style="margin:6px 0 0">Nästa rapport om <b>${z.rapport} d</b> (Yahoo, kan vara uppskattat).</p>`:"";
+  const fon=`<div class="tl">${dtxt}${tidslinje(z)}<div class="small muted">Mörk zon: 45–70 d (sweet spot). Ljus zon: 30–90 d (run-up).${z.sweet?' <b style="color:var(--accent)">Sweet spot: fas 2/3 och 45–70 d.</b>':""}</div>${kv([["Fönsterbedömning",esc(z.fonster_t)],["Nästa händelses fas",esc((z.besked.find(e=>e.typ!=="Planerat")||z.besked[0]||{}).fas||"–")]])}${rap}</div>`;
+  // 2.2 teknik
+  const rl=t.rsi==null?"–":t.rsi>70?`<b class="neg">${fmt(t.rsi,0)} · överköpt</b>`:t.rsi<30?`<b class="warnc">${fmt(t.rsi,0)} · översåld</b>`:`<b>${fmt(t.rsi,0)}</b> · neutral`;
+  const rel=t.sma20==null||t.sma50==null?"–":z.kurs>t.sma20&&t.sma20>t.sma50?'<b class="pos">över båda, SMA 20 > SMA 50</b>':z.kurs>t.sma20&&z.kurs>t.sma50?"över båda":z.kurs>t.sma50?"över SMA 50, under SMA 20":'<b class="neg">under SMA 50</b>';
+  const tek=kv([
+    ["RSI(14)",rl],["Positiv divergens",t.diverg?'<b class="pos">Ja</b>':"Nej"],
+    ["Kurs mot SMA 20 / SMA 50",rel],["SMA 20 / SMA 50",`${fmt(t.sma20,2)} / ${fmt(t.sma50,2)}`],
+    ["Spann senaste 20 d",`${fmt(t.range20,0)} % ${t.tight?'<b class="pos">· snävt</b>':""}`],
+    ["Volym, 10 d mot 40 d före",t.volratio==null?"–":`${fmt(t.volratio,2)}× ${t.volstiger?'<b class="pos">· stiger</b>':""}`],
+    ["Uppgång 20 d / 60 d / 1 år",`<span class="${cls(z.ret20)}">${sgn(z.ret20,0)} %</span> / <span class="${cls(z.ret60)}">${sgn(z.ret60,0)} %</span> / <span class="${cls(z.ret250)}">${sgn(z.ret250,0)} %</span>`],
+    ["Från årstopp / över årsbotten",`${sgn(z.fran_topp,0)} % / ${sgn(z.over_botten,0)} %`],
+    ...Object.entries(z.sek||{}).map(([k,v])=>[`Mot ${k.replace("^","")} (20 d / 60 d / 1 år, procentenheter)`,`<span class="${cls(v.o20)}">${sgn(v.o20,0)}</span> / <span class="${cls(v.o60)}">${sgn(v.o60,0)}</span> / <span class="${cls(v.o250)}">${sgn(v.o250,0)}</span>`]),
+    ...(z.sek&&Object.keys(z.sek).length?[["Indexets andel av dagsrörelserna (1 år)",Object.entries(z.sek).map(([k,v])=>`${k.replace("^","")} ${v.r2==null?"–":v.r2+" %"}`).join(" · ")]]:[])]);
+  const STU=z.studier&&z.studier.length?`<h3 style="margin-top:14px">Studieregistret (ClinicalTrials.gov)</h3><ul class="ev">${z.studier.slice(0,8).map(s=>`<li><span class="d">${s.dg==null?"–":s.dg<0?"passerat":s.dg+" d"}</span><span><a href="https://clinicaltrials.gov/study/${esc(s.nct)}" target="_blank" rel="noopener">${esc(s.nct)}</a> · <b>${esc(s.fas)}</b> · ${esc(s.ssv)}${s.res?' · <span class="pos">resultat upplagt</span>':""}<br><span class="muted">${esc(s.t)}</span><br><span class="small">Primärt slutdatum ${esc(s.ps||"–")} (${s.pst==="ACTUAL"?"faktiskt":"beräknat"}) · uppdaterad ${esc(s.u||"–")}</span></span></li>`).join("")}</ul>${z.studie_andr&&z.studie_andr.length?`<p class="small" style="margin:6px 0 0"><b>Ändringar senaste 30 d:</b> ${z.studie_andr.map(a=>`${esc(a.d)} ${esc(a.nct)}: ${esc(a.typ)}${a.fran||a.till?" "+esc(a.fran)+" → "+esc(a.till):""}`).join("; ")}</p>`:""}<p class="small muted" style="margin:6px 0 0">Källa: ClinicalTrials.gov, hämtas varje vardag. Bolagen uppdaterar registret själva, så datum kan vara föråldrade. Primärt slutdatum är när sista patienten fått sin primära mätning; resultat redovisas oftast 1–4 månader senare. Registret visar bara studier där bolaget är huvudsponsor.</p>`:"";
+  const wl=z.ned.map(w=>`<li><span class="pill ${w.sev}">${esc(w.l)}</span><span>${esc(w.t)}</span></li>`).concat(z.upp.map(u=>`<li><span class="pill upp">${esc(u.l)}</span><span>${esc(u.t)}</span></li>`)).join("");
+  return `<div class="detail">
+    <div class="part"><b>DEL 1 · VAD</b><span>Är bolaget värt att äga inför en händelse?</span><span class="sc">${z.vad} / 100</span></div>
+    <div><div class="sub3"><h3><span class="no">1.1</span>Klinisk pipeline och milstolpar</h3><span class="m">${sc1} / 35</span></div>${fas}${pot}
+      <h3 style="margin-top:14px">Kommande katalysatorer</h3>${ev}${pmh}${pipe}${STU}</div>
+    <div><div class="sub3"><h3><span class="no">1.2</span>Finansiell uthållighet</h3><span class="m">${sc2} / 35</span></div>${fin}
+      <div class="sub3"><h3><span class="no">1.3</span>Ägarstruktur och kvalitet</h3><span class="m">${sc3} / 30</span></div>${agare}${kalla}</div>
+    <div class="part n"><b>DEL 2 · NÄR</b><span>Är tidpunkten rätt?</span><span class="sc">${z.nar} / 100</span></div>
+    <div><div class="sub3"><h3><span class="no">2.1</span>Katalysatorfönster</h3><span class="m">${sn1} / 35</span></div>${fon}
+      <h3>Risk</h3>${kv([["Din post (enligt räknaren)",fmt(post)+" kr"],["Antal aktier",fmt(ant)+" st"],["Förlust vid fall "+fmt(+$("fall").value)+" %",fmt(post*(+$("fall").value/100))+" kr"],["Omsättning per dag",fmt(z.oms,1)+" MSEK"]])}</div>
+    <div><div class="sub3"><h3><span class="no">2.2</span>Tekniska timingindikatorer</h3><span class="m">${sn2} / 65</span></div>${tek}</div>
+    <div class="chartbox"><h3>Kursdiagram</h3>
+      <div class="ch-top"><span class="ro" id="ro-${z.t}"></span>
+        <span class="seg" data-seg="${z.t}">${[[63,"3 mån"],[126,"6 mån"],[260,"1 år"]].map(([n,l])=>`<button data-n="${n}" aria-pressed="${state.rng===n}">${l}</button>`).join("")}</span></div>
+      <div class="cv" id="cv-${z.t}"></div><div class="rsi" id="rs-${z.t}"></div>
+      <div class="small muted">Linje: stängningskurs. Prickad: SMA 20. Streckad: SMA 50. Trianglar: insynsköp. Nedre panelen: RSI(14) med 30 och 70.</div></div>
+    <div style="grid-column:1/-1"><h3>Varningar och signaler · ${esc(z.lage)}</h3><ul class="wl">${wl||'<li class="muted">Inga.</li>'}</ul></div>
+  </div>`;
+}
+function graf(z){
+  const el=$("cv-"+z.t); if(!el) return;
+  const n=Math.min(state.rng,DATA.datum.length), off=DATA.datum.length-n, ch=z.ch;
+  const W=720,H=250,pl=8,pr=62,pt=10,pb=22, xs=i=>pl+(W-pl-pr)*i/(n-1);
+  const c=ch.c.slice(off), m=ch.m50.slice(off), m2=ch.m20.slice(off), vals=c.concat(m,m2).filter(v=>v!=null);
+  let lo=Math.min(...vals), hi=Math.max(...vals); const pad=(hi-lo)*.06||1; lo-=pad; hi+=pad;
+  const ys=v=>pt+(H-pt-pb)*(1-(v-lo)/(hi-lo));
+  const path=a=>a.map((v,i)=>v==null?null:(i&&a[i-1]!=null?"L":"M")+xs(i).toFixed(1)+" "+ys(v).toFixed(1)).filter(Boolean).join("");
+  let grid="";
+  for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4;grid+=`<line x1="${pl}" x2="${W-pr}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${W-pr+6}" y="${ys(v)+4}">${fmt(v,v<100?2:0)}</text>`;}
+  const tk=[0,Math.round((n-1)/2),n-1].map(i=>`<text x="${xs(i)}" y="${H-6}" text-anchor="${i==0?"start":i==n-1?"end":"middle"}">${DATA.datum[off+i]}</text>`).join("");
+  const mk=ch.ev.filter(e=>e[0]>=off).map(e=>{const i=e[0]-off,y=ys(c[i]??lo);return `<path d="M${xs(i)} ${y-4}l-5 -9h10z" fill="var(--good)"><title>Insynsköp ${fmt(e[1]/1e6,2)} MSEK ${DATA.datum[e[0]]}</title></path>`}).join("");
+  const area=path(c)+`L${xs(n-1)} ${H-pb}L${xs(0)} ${H-pb}Z`;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Kurs ${esc(z.namn)}">${grid}${tk}<path d="${area}" fill="var(--accent)" opacity=".1"/><path d="${path(m)}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1.2"/><path d="${path(m2)}" fill="none" stroke="var(--muted)" stroke-dasharray="1 3" stroke-width="1.4"/><path d="${path(c)}" fill="none" stroke="var(--accent)" stroke-width="1.8"/>${mk}<circle cx="${xs(n-1)}" cy="${ys(c[n-1])}" r="3.5" fill="var(--accent)"/><line id="cr-${z.t}" y1="${pt}" y2="${H-pb}" stroke="var(--muted)" opacity="0"/></svg>`;
+  // RSI-panel
+  const r=ch.rsi.slice(off), RH=78, rp=4, ry=v=>rp+(RH-2*rp)*(1-v/100), rpath=r.map((v,i)=>v==null?null:(i&&r[i-1]!=null?"L":"M")+xs(i).toFixed(1)+" "+ry(v).toFixed(1)).filter(Boolean).join("");
+  const lastR=[...r].reverse().find(v=>v!=null);
+  $("rs-"+z.t).innerHTML=`<svg viewBox="0 0 ${W} ${RH}" role="img" aria-label="RSI ${esc(z.namn)}"><rect x="${pl}" y="${ry(70)}" width="${W-pl-pr}" height="${ry(30)-ry(70)}" fill="var(--surface2)" opacity=".7"/><line x1="${pl}" x2="${W-pr}" y1="${ry(70)}" y2="${ry(70)}" stroke="var(--bad)" opacity=".5" stroke-dasharray="3 3"/><line x1="${pl}" x2="${W-pr}" y1="${ry(30)}" y2="${ry(30)}" stroke="var(--good)" opacity=".5" stroke-dasharray="3 3"/><text x="${W-pr+6}" y="${ry(70)+4}">70</text><text x="${W-pr+6}" y="${ry(30)+4}">30</text><path d="${rpath}" fill="none" stroke="#0F7C8A" stroke-width="1.5"/>${lastR!=null?`<text x="${W-pr+28}" y="${ry(lastR)+4}" style="fill:var(--ink);font-weight:600">${fmt(lastR,0)}</text>`:""}</svg>`;
+  const svg=el.querySelector("svg"), ro=$("ro-"+z.t), cr=$("cr-"+z.t);
+  const mv=e=>{const rc=svg.getBoundingClientRect(), x=((e.touches?e.touches[0].clientX:e.clientX)-rc.left)/rc.width*W; const i=Math.max(0,Math.min(n-1,Math.round((x-pl)/(W-pl-pr)*(n-1)))); cr.setAttribute("x1",xs(i));cr.setAttribute("x2",xs(i));cr.setAttribute("opacity",.6); ro.textContent=`${DATA.datum[off+i]}  kurs ${fmt(c[i],2)}  RSI ${r[i]==null?"–":fmt(r[i],0)}`;};
+  svg.addEventListener("pointermove",mv); svg.addEventListener("pointerleave",()=>{cr.setAttribute("opacity",0);ro.textContent=""});
+}
+function sektor(){
+  const S=DATA.sektor||[], med=a=>{a=a.filter(v=>v!=null).sort((x,y)=>x-y);return a.length?a[Math.floor(a.length/2)]:null};
+  const td=v=>`<td style="text-align:right;font-family:var(--f-mono)" class="${cls(v)}">${v==null?"–":sgn(v,1)+" %"}</td>`;
+  const rows=S.map(s=>{const m=A.filter(z=>z.sek&&z.sek[s.t]&&z.sek[s.t].o20!=null), b=m.filter(z=>z.sek[s.t].o20>0).length;
+    return `<tr><td>${esc(s.namn)}<br><span class="small">till ${esc(s.senast)}</span></td>${td(s.d1)}${td(s.r20)}${td(s.r60)}${td(s.r250)}<td style="text-align:right;font-family:var(--f-mono)">${b} av ${m.length}</td></tr>`}).join("");
+  const pe=`<tr><td>Bolagen här (median)</td>${td(med(A.map(z=>z.d1)))}${td(med(A.map(z=>z.ret20)))}${td(med(A.map(z=>z.ret60)))}${td(med(A.map(z=>z.ret250)))}<td></td></tr>`;
+  $("sek").innerHTML=S.length?`<div style="overflow-x:auto"><table class="kv"><tr style="font-size:12px;color:var(--muted)"><td></td><td style="text-align:right">1 d</td><td style="text-align:right">20 d</td><td style="text-align:right">60 d</td><td style="text-align:right">1 år</td><td style="text-align:right">Bolag som slår indexet (20 d)</td></tr>${rows}${pe}</table></div>`:`<div class="empty">Indexdata saknas ännu.</div>`;
+  const B=(DATA.bransch||[]).filter(e=>e.dg<=230).slice(0,12);
+  $("bransch").innerHTML=B.length?B.map(e=>`<li><span class="d">${e.dg} d</span><span><b>${esc(e.h)}</b><br><span class="muted">${esc(e.d)} · ${esc(e.typ)}${e.omr?" · "+esc(e.omr):""}</span>${/^https:\/\//.test(e.k)?` · <a href="${esc(e.k)}" target="_blank" rel="noopener">källa</a>`:""}</span></li>`).join(""):`<li class="muted">Ingen branschhändelse inlagd.</li>`;
+}
+function kalender(){
+  const alla=DATA.kalender.filter(e=>e.dg<=state.kal), rows=state.kall?alla:alla.slice(0,10);
+  $("kal").innerHTML=(rows.length?rows.map(e=>{
+    const when=e.typ==="Datum"?`${esc(e.d)}<small>om ${e.dg} d</small>`:`${esc(e.per)}<small>planerad · ca ${e.dg} d</small>`;
+    return `<button class="kr${e.sweet?" sw":""}" data-open="${esc(e.t)}"><span class="dt">${when}</span>
+      <span class="tx"><b>${esc(e.namn)}</b>${e.fas?` · ${esc(e.fas)}`:""}<br><span class="muted">${esc(e.h)}</span><br><span class="small">${e.sweet?'<b style="color:var(--accent)">Sweet spot</b> · ':""}${esc(e.fonster)}${e.p!=null?` · branschsnitt ca ${e.p} %`:""}</span></span>
+      <span class="vn">Vad ${e.vad} · När ${e.nar}</span></button>`}).join(""):`<div class="empty">Inga händelser inlagda inom perioden.</div>`)+(alla.length>10?`<button class="chip" id="kmore" style="align-self:flex-start">${state.kall?"Visa färre":"Visa alla "+alla.length}</button>`:"");
+  document.querySelectorAll("#kseg button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.k===state.kal)));
+}
+function lista(){
+  const q=state.q.trim().toLowerCase();
+  const rows=A.filter(z=>ok(z)&&(!q||z._s.includes(q))).sort(sorter());
+  $("list").innerHTML=rows.length?rows.map(rad).join(""):`<div class="empty">Inga bolag matchar.</div>`;
+  rows.filter(z=>state.open.has(z.t)).forEach(graf);
+  sfseg();
+}
+document.addEventListener("click",e=>{
+  const sg=e.target.closest(".sf-tog");
+  if(sg){const t=sg.dataset.t; state.sm.has(t)?state.sm.delete(t):state.sm.add(t); lista(); const b=document.querySelector(`.sf-tog[data-t="${t}"]`); if(b) b.focus(); return}
+  const sm=e.target.closest("#sfseg button");
+  if(sm){const m=sm.dataset.sfm; state.sfhide=m==="av"; state.sm=m==="lang"?new Set(A.filter(z=>z.sf).map(z=>z.t)):new Set(); lista(); return}
+  const s=e.target.closest("[data-seg] button");
+  if(s){state.rng=+s.dataset.n; lista(); return}
+  if(e.target.closest("#kmore")){state.kall=!state.kall; kalender(); return}
+  const ks=e.target.closest("#kseg button"); if(ks){state.kal=+ks.dataset.k; kalender(); return}
+  const ko=e.target.closest("[data-open]"); if(ko){const t=ko.dataset.open; state.f="alla"; state.q=""; $("q").value=""; state.open.add(t); chips(); lista(); const el=document.querySelector(`.rowhead[data-t="${t}"]`); if(el) el.scrollIntoView({block:"start",behavior:"smooth"}); return}
+  const r=e.target.closest(".rowhead"); if(r){const t=r.dataset.t; state.open.has(t)?state.open.delete(t):state.open.add(t); lista(); return}
+  const c=e.target.closest("[data-f]"); if(c){state.f=c.dataset.f; chips(); lista()}
+});
+$("q").addEventListener("input",e=>{state.q=e.target.value;lista()});
+$("sort").addEventListener("change",e=>{state.sort=e.target.value;lista()});
+["kap","pct","fall"].forEach(id=>$(id).addEventListener("input",()=>{calc(); lista()}));
+calc(); chips(); sektor(); kalender(); lista();
+</script>

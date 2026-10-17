@@ -1,0 +1,57 @@
+name: extra
+
+# Extra datakällor: sektorindex (XBI, OMXSPI), ClinicalTrials.gov per bolag, flaggningar ur FI:s Finanscentralen och SEC/EDGAR-bevakning. Loggen hamnar i extra_logg.txt.
+on:
+  workflow_dispatch:
+    inputs:
+      vad:
+        description: "index, studier, edgar, flaggning, probe eller tomt för alla (utom probe)"
+        default: ""
+  #AV# schedule:
+    #AV# - cron: "45 16 * * 1-5"   # vardagar efter att kurserna hämtats
+
+concurrency:
+  group: extra
+permissions:
+  contents: read
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas requests yfinance
+      - name: Hämta
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SEC_UA: ${{ secrets.SEC_UA }}
+        run: python -u extra_hamta.py ${{ inputs.vad }}
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          for f in bio_index.csv bio_studier.csv bio_studier_logg.csv bio_flaggning.csv edgar_traffar.csv extra_logg.txt; do [ -f "$f" ] && git add "$f"; done
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "extra: index, studier, edgar $(date -u '+%F %H:%M')"
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1

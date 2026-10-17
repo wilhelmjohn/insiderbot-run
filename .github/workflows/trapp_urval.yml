@@ -1,0 +1,41 @@
+name: trapp_urval
+on:
+  workflow_dispatch:
+    inputs:
+      antal:
+        description: "Antal kandidater i urvalet"
+        default: "40"
+  #AV# schedule:
+    #AV# - cron: "0 15 * * 0"   # söndag ca 17-18 svensk tid
+concurrency:
+  group: volscreen
+permissions:
+  contents: read
+jobs:
+  urval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas numpy yfinance
+      - run: python -u trapp_urval.py "${{ inputs.antal || '40' }}"
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add trapp_tickers.txt trapp_urval.csv trapp_fasta.txt
+          git diff --cached --quiet || git commit -m "trapp: veckans urval $(date -u +%F)"
+          git pull --rebase && git push

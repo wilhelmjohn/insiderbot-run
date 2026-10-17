@@ -1,0 +1,429 @@
+<title>Sektortracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Schibsted+Grotesk:wght@600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: överst en mening om läget och marknadsläget, sedan tre flikar (Sverige, USA, Test). Sverige och USA är rangordnade rader, ett segment per rad, som blir kort på telefon. Samma färger och typsnitt som Biotechscreen. */
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --surface2:#EAEEF5; --ink:#141B2D; --muted:#59627A; --line:#D6DCE8;
+  --accent:#4A3FCB; --accent-soft:#E7E5FA;
+  --good:#17724A; --good-soft:#DDF1E6; --warn:#8F5A00; --warn-soft:#FBEED2; --bad:#B3261E; --bad-soft:#F8E0DD;
+  --s1:#2a78d6; --s2:#eb6834; --ref:#52514e; --ref2:#898781;
+  --f-disp:"Schibsted Grotesk","Segoe UI",system-ui,sans-serif; --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A;
+  --s1:#3987e5; --s2:#d95926; --ref:#c3c2b7; --ref2:#898781; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1220; --surface:#171C2E; --surface2:#1E2438; --ink:#E6E9F5; --muted:#98A1BD; --line:#2B3350;
+  --accent:#A39BFF; --accent-soft:#272553;
+  --good:#5ECB92; --good-soft:#143427; --warn:#E5AA48; --warn-soft:#3A2B0F; --bad:#F28479; --bad-soft:#401C1A;
+  --s1:#3987e5; --s2:#d95926; --ref:#c3c2b7; --ref2:#898781; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--f-body);margin:0;padding-inline:clamp(16px,4vw,32px);padding-block:24px 56px}
+.wrap{max-width:1080px;margin-inline:auto;display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--f-disp);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:clamp(28px,5vw,38px);line-height:1.1}
+h2{font-size:20px;line-height:1.2}
+h3{font-size:16px;line-height:1.25}
+p{margin:0}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:6px 24px}
+header.top p{margin:8px 0 0;max-width:62ch}
+.stamp{font-size:13px;color:var(--muted);text-align:right}
+.just{padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+.just p{max-width:78ch;text-wrap:pretty}
+.just b{font-weight:600}
+.mk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 20px;margin:0;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.mk > div{min-width:0}
+.mk dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mk dd{margin:2px 0 0;font:500 16px var(--f-mono);font-variant-numeric:tabular-nums}
+.mk small{display:block;font:400 12px/1.35 var(--f-body);color:var(--muted);margin-top:2px}
+.mknot{font-size:14px;color:var(--muted);max-width:90ch;margin-top:-8px}
+.flikar{display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--surface);align-self:flex-start;max-width:100%}
+.flikar button{font:600 15px var(--f-body);color:var(--muted);background:none;border:0;border-radius:7px;padding:8px 18px;cursor:pointer}
+.flikar button:hover{color:var(--ink)}
+.flikar button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+button:focus-visible,summary:focus-visible,svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.nota{font-size:14px;color:var(--muted);max-width:88ch}
+/* rangordnade rader */
+.lista{display:flex;flex-direction:column;gap:0;margin:0;padding:0;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.lista > li{padding:12px 16px;border-top:1px solid var(--line)}
+.lista > li:first-child{border-top:0}
+.rad.hdr{display:none;background:var(--surface2);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tema{background:var(--surface2);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding-block:8px !important}
+.rad{display:grid;gap:8px 12px;align-items:center;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"namn namn lage" "spark spark spark" "m3 m6 m121" "tr bredd bredd" "led led led"}
+.c-namn{grid-area:namn;min-width:0}
+.c-lage{grid-area:lage;justify-self:end;text-align:right}
+.c-spark{grid-area:spark}
+.c-m3{grid-area:m3} .c-m6{grid-area:m6} .c-m121{grid-area:m121}
+.c-tr{grid-area:tr} .c-bredd{grid-area:bredd} .c-led{grid-area:led;min-width:0}
+.rad [data-l]::before{content:attr(data-l);display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.nm b{font:600 16px var(--f-disp)}
+.nm small{display:block;font-size:13px;color:var(--muted)}
+.nm .smal{color:var(--warn)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 13px/1.2 var(--f-body);padding:4px 10px;border-radius:6px;white-space:nowrap}
+.pill.m{background:var(--good-soft);color:var(--good)}
+.pill.b{background:var(--surface2);color:var(--muted)}
+.pill.o{background:var(--bad-soft);color:var(--bad)}
+.pp{display:block;font:400 12px var(--f-mono);color:var(--muted);margin-top:3px}
+.num{font:500 15px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.tr{font:500 14px var(--f-mono)}
+.bar{position:relative;height:8px;border-radius:4px;background:var(--surface2);width:100%;max-width:120px}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:4px;background:var(--s1)}
+.bar u{position:absolute;top:-2px;bottom:-2px;left:50%;width:1px;background:var(--muted);opacity:.7}
+.br{display:flex;align-items:center;gap:8px}
+.br span{font:500 13px var(--f-mono);min-width:4ch;text-align:right;white-space:nowrap}
+.led{font-size:14px;color:var(--muted)}
+.led > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.led b{font-weight:600;color:var(--ink)}
+svg.sp{display:block;width:100%;max-width:140px;height:32px;overflow:visible;touch-action:none}
+.sp .base{stroke:var(--line);stroke-width:1}
+.sp .ln{fill:none;stroke:var(--s1);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sp .dot{fill:var(--s1);stroke:var(--surface);stroke-width:2}
+.sp .ch{stroke:var(--muted);stroke-width:1}
+@media (min-width:860px){
+  .rad.hdr{display:grid}
+  .lista > li{padding:10px 16px}
+  .rad{grid-template-columns:minmax(130px,1.1fr) 108px 132px 76px 76px 84px 56px 112px minmax(0,1.5fr);grid-template-areas:"namn lage spark m3 m6 m121 tr bredd led"}
+  .rad.us{grid-template-columns:minmax(140px,1.2fr) 112px 140px 76px 76px 84px 56px;grid-template-areas:"namn lage spark m3 m6 m121 tr"}
+  .rad [data-l]::before{display:none}
+  .c-lage{justify-self:start;text-align:left}
+  .c-tr,.c-m3,.c-m6,.c-m121{text-align:right}
+  
+}
+/* test */
+.testrad{display:grid;grid-template-columns:1fr;gap:20px}
+.test{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.test p{max-width:78ch;text-wrap:pretty}
+.leg{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px}
+.leg span{display:inline-flex;align-items:center;gap:8px;color:var(--ink)}
+.leg i{display:inline-block;width:18px;height:0;border-top:3px solid var(--s1);border-radius:2px}
+.diag{position:relative;min-width:0}
+.diag svg{display:block;width:100%;overflow:visible;touch-action:pan-y}
+.diag .grid{stroke:var(--line);stroke-width:1}
+.diag .axl{fill:var(--muted);font:400 11px var(--f-mono)}
+.diag .l{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.diag .d{stroke:var(--surface);stroke-width:2}
+.diag .ch{stroke:var(--muted);stroke-width:1}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:7px 10px;text-align:right;border-top:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+thead th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;border-top:0}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+tr.refrad td{color:var(--muted)}
+.robust{display:grid;grid-template-columns:auto repeat(3,minmax(64px,88px));gap:4px;align-items:stretch;font:500 14px var(--f-mono);max-width:420px}
+.robust > div{padding:6px 8px;border-radius:6px;text-align:right;font-variant-numeric:tabular-nums}
+.robust .h{background:none;color:var(--muted);font:600 12px var(--f-body);letter-spacing:.04em;text-transform:uppercase}
+.robust .h:first-child{text-align:left}
+.robust .p{background:var(--good-soft);color:var(--good)}
+.robust .m{background:var(--bad-soft);color:var(--bad)}
+details{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 14px}
+details summary{cursor:pointer;font-weight:600;font-size:15px}
+details > :not(summary){margin-top:10px}
+details ul{margin:10px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:84ch}
+.test details{background:var(--surface2)}
+#tip{position:fixed;z-index:10;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.4;box-shadow:0 4px 18px rgba(0,0,0,.25);max-width:260px;display:none}
+#tip b{font:500 14px var(--f-mono);display:block}
+#tip .r{display:flex;align-items:center;gap:8px;white-space:nowrap}
+#tip .r i{display:inline-block;width:12px;border-top:3px solid;border-radius:2px;flex:none}
+#tip .r b{display:inline;margin-left:auto;padding-left:10px}
+#tip .dt{opacity:.75;margin-bottom:2px}
+footer{font-size:13px;color:var(--muted);max-width:90ch;display:flex;flex-direction:column;gap:8px}
+footer a{color:var(--accent)}
+@media (max-width:640px){
+  .mk{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Börsen · Sektorer</div>
+      <h1>Sektortracker</h1>
+      <p class="muted">Vilka delar av börsen har medvind just nu, och hur väl har en enkel regel för att följa de starkaste fungerat? Ett mått på styrka och trend, ingen prognos.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+
+  <section class="just" id="just" aria-live="polite"></section>
+
+  <dl class="mk" id="mk"></dl>
+  <p class="mknot" id="mknot"></p>
+
+  <nav class="flikar" role="group" aria-label="Visa">
+    <button type="button" id="b-se" aria-pressed="true">Sverige</button>
+    <button type="button" id="b-us" aria-pressed="false">USA</button>
+    <button type="button" id="b-test" aria-pressed="false">Test</button>
+  </nav>
+
+  <section id="p-se" aria-label="Sverige">
+    <p class="nota" id="nota-se"></p>
+    <ol class="lista" id="l-se"></ol>
+  </section>
+
+  <section id="p-us" aria-label="USA" hidden>
+    <p class="nota" id="nota-us"></p>
+    <ol class="lista" id="l-us"></ol>
+  </section>
+
+  <section id="p-test" aria-label="Test" hidden>
+    <div class="testrad" id="testrad"></div>
+  </section>
+
+  <details>
+    <summary>Så läser du siffrorna</summary>
+    <ul>
+      <li><b>Vilka bolag.</b> Inte hela börsen. Underlaget är bolagen i insiderboten, alltså de där insiders köpt aktier någon gång sedan 2016 och där Yahoo har kurser. Bolag utan insiderköp saknas, och några stora bolag (Atlas Copco och NCC) saknas för att Yahoo-kopplingen misslyckades. Urvalet bygger på insiderköp som kom efteråt, så historiken ser bättre ut än den var i verkligheten.</li>
+      <li><b>Segment.</b> Ett index där alla likvida bolag i segmentet väger lika. Bolagen är sorterade efter Yahoos sektor, med läkemedel och biotech skilda från medtech, och banker från övrig finans.</li>
+      <li><b>3 m, 6 m och 12−1 m.</b> Avkastning mot snittet för alla likvida bolag, i procent. 12−1 m är de senaste tolv månaderna utom den sista, som i forskningen. Den sista månaden vänder ofta och skulle annars störa signalen.</li>
+      <li><b>Läge.</b> Medvind betyder att segmentet hör till de starkaste (poäng 0,6 eller mer av 1 på de tre tidsfönstren), har slagit snittet de senaste sex månaderna, ligger över sitt 200-dagarssnitt och att minst hälften av bolagen gör det. Motvind betyder poäng 0,4 eller lägre och index under snittet. Allt annat är blandat.</li>
+      <li><b>200 d och bredd.</b> Om segmentets index ligger över sitt 200-dagarssnitt (ja eller nej) och hur stor andel av bolagen som ligger över sitt eget. Ett segment som stiger på få bolag har smal bredd.</li>
+      <li><b>Drar mest.</b> De två bolag som stigit mest de senaste sex månaderna i segmentet.</li>
+      <li><b>Det mäter medvind, inte framtiden.</b> Forskningen visar att starka branscher i snitt fortsätter vara starka en tid, men med långa perioder då det inte stämmer. Se fliken Test för hur det gått här.</li>
+    </ul>
+  </details>
+
+  <footer>
+    <p>Svenska kurser och sektorer kommer från Yahoo Finance och kan vara försenade eller felaktiga för enstaka bolag. Segmenten bygger på bolag med minst 0,5 MSEK i omsättning per dag, valda utifrån dagens läge, och bara på bolag där insiders köpt aktier sedan 2016 (listan som insiderboten följer). Det är alltså inte hela Stockholmsbörsen. Texterna är skrivna av en AI-modell (Claude) och kan innehålla fel. Detta är inget investeringsråd.</p>
+    <p>Bakgrund: <a href="https://ideas.repec.org/a/bla/jfinan/v54y1999i4p1249-1290.html" target="_blank" rel="noopener">Moskowitz &amp; Grinblatt (1999), branschmomentum</a> · <a href="https://www.nber.org/papers/w20439" target="_blank" rel="noopener">Daniel &amp; Moskowitz (2016), momentumkrascher</a>.</p>
+  </footer>
+</div>
+<div id="tip" role="status"></div>
+
+<script>
+const DATA = /*DATA*/;
+const MAN = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const sv = (x, n = 1) => x == null ? "–" : x.toFixed(n).replace(".", ",");
+const pct = (x, n = 1) => x == null ? "–" : (x > 0 ? "+" : x < 0 ? "−" : "") + sv(Math.abs(x), n) + " %";
+const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
+const dat = s => { const d = new Date(s + "T12:00:00"); return d.getDate() + " " + MAN[d.getMonth()]; };
+const datAr = s => dat(s) + " " + s.slice(0, 4);
+const manAr = s => MAN[+s.slice(5, 7) - 1] + " " + s.slice(0, 4);
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  if (props) for (const k in props) { if (k === "class") e.className = props[k]; else e.setAttribute(k, props[k]); }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+}
+const SVGNS = "http://www.w3.org/2000/svg";
+function sv_(tag, props) { const e = document.createElementNS(SVGNS, tag); for (const k in props) e.setAttribute(k, props[k]); return e; }
+
+/* ---------- hover ---------- */
+const tip = document.getElementById("tip");
+function visaTip(rows, datum, ev) {
+  tip.replaceChildren();
+  if (datum) tip.append(el("div", {class: "dt"}, datum));
+  rows.forEach(r => {
+    const row = el("div", {class: "r"});
+    if (r.farg) { const k = el("i"); k.style.borderTopColor = r.farg; row.append(k); }
+    row.append(el("span", null, r.namn), el("b", null, r.v));
+    tip.append(row);
+  });
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY - h - 10;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y < 8) y = ev.clientY + 16;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = y + "px";
+}
+const gomTip = () => { tip.style.display = "none"; };
+
+/* ---------- små grafer ---------- */
+function spark(vals, datum) {
+  const W = 140, H = 32, p = 3;
+  const v = vals.map((x, i) => [i, x]).filter(a => a[1] != null);
+  const mn = Math.min(...v.map(a => a[1]), 100), mx = Math.max(...v.map(a => a[1]), 100);
+  const X = i => p + i * (W - 2 * p) / (vals.length - 1), Y = y => H - p - (y - mn) / ((mx - mn) || 1) * (H - 2 * p);
+  const s = sv_("svg", {class: "sp", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Relativ styrka mot snittet de senaste 12 månaderna", tabindex: "0"});
+  s.append(sv_("line", {class: "base", x1: p, x2: W - p, y1: Y(100), y2: Y(100)}));
+  s.append(sv_("polyline", {class: "ln", points: v.map(a => X(a[0]).toFixed(1) + "," + Y(a[1]).toFixed(1)).join(" ")}));
+  const last = v[v.length - 1];
+  s.append(sv_("circle", {class: "dot", cx: X(last[0]).toFixed(1), cy: Y(last[1]).toFixed(1), r: 4}));
+  const ch = sv_("line", {class: "ch", y1: 0, y2: H, display: "none"}); s.append(ch);
+  const visa = (i, ev) => {
+    const k = Math.max(0, Math.min(vals.length - 1, i));
+    if (vals[k] == null) return;
+    ch.setAttribute("x1", X(k)); ch.setAttribute("x2", X(k)); ch.setAttribute("display", "block");
+    visaTip([{namn: "Relativ styrka", v: sv(vals[k], 1)}], dat(datum[k]) + " " + datum[k].slice(0, 4), ev);
+  };
+  s.addEventListener("pointermove", ev => { const r = s.getBoundingClientRect(); visa(Math.round((ev.clientX - r.left) / r.width * (vals.length - 1)), ev); });
+  s.addEventListener("pointerleave", () => { ch.setAttribute("display", "none"); gomTip(); });
+  s.addEventListener("focus", () => { const r = s.getBoundingClientRect(); visa(vals.length - 1, {clientX: r.right, clientY: r.top}); });
+  s.addEventListener("blur", () => { ch.setAttribute("display", "none"); gomTip(); });
+  return s;
+}
+
+/* ---------- rader ---------- */
+const LAGE = {Medvind: ["m", "▲"], Blandat: ["b", "–"], Motvind: ["o", "▼"]};
+function pill(l, comp) { const [k, ik] = LAGE[l]; return el("span", {class: "pill " + k}, ik + " " + l); }
+function mcell(c, lab, x) { return el("div", {class: "c-" + c + " num " + cls(x), "data-l": lab}, pct(x)); }
+function rad(z, datum, us) {
+  const li = el("li", {class: "rad" + (us ? " us" : "")});
+  const nm = el("div", {class: "c-namn nm"}, el("b", null, z.namn));
+  nm.append(el("small", z.smalt ? {class: "smal", title: "Färre än tio bolag. Ett enstaka bolag kan styra siffrorna."} : null, us ? z.t : z.n + " bolag" + (z.smalt ? ", tolka försiktigt" : "")));
+  li.append(nm,
+    el("div", {class: "c-lage"}, pill(z.lage), el("span", {class: "pp"}, "poäng " + sv(z.comp, 2))),
+    el("div", {class: "c-spark", "data-l": "Styrka 12 mån"}, spark(z.rs, datum)),
+    mcell("m3", "3 m", z.rel3), mcell("m6", "6 m", z.rel6), mcell("m121", "12−1 m", z.rel121),
+    el("div", {class: "c-tr tr", "data-l": "Över 200 d", title: "Index " + pct(z.dist200) + " från 200-dagarssnittet"}, z.over200 ? "ja" : "nej"));
+  if (!us) {
+    const b = el("div", {class: "c-bredd", "data-l": "Bredd (över 200 d)"});
+    const bar = el("div", {class: "br"}, el("div", {class: "bar", title: "Andel av bolagen över sitt 200-dagarssnitt"}, el("i", {style: "width:" + (z.bredd200 ?? 0) + "%"}), el("u")), el("span", null, z.bredd200 == null ? "–" : Math.round(z.bredd200) + " %"));
+    b.append(bar); li.append(b);
+    const led = el("div", {class: "c-led led", "data-l": "Drar mest (6 m)"});
+    z.ledare.slice(0, 2).forEach(l => led.append(el("div", null, el("b", null, l.namn), " " + pct(l.r6, 0))));
+    li.append(led);
+  }
+  return li;
+}
+function hdr(us) {
+  const li = el("li", {class: "rad hdr" + (us ? " us" : ""), "aria-hidden": "true"});
+  [["namn", "Segment"], ["lage", "Läge"], ["spark", "Styrka 12 mån"], ["m3", "3 m"], ["m6", "6 m"], ["m121", "12−1 m"], ["tr", "200 d"]].forEach(([c, t]) => li.append(el("div", {class: "c-" + c}, t)));
+  if (!us) { li.append(el("div", {class: "c-bredd"}, "Bredd"), el("div", {class: "c-led"}, "Drar mest (6 m)")); }
+  return li;
+}
+
+/* ---------- sammanfattning ---------- */
+function just() {
+  const g = (rows, l) => rows.filter(r => r.lage === l).map(r => r.namn);
+  const lista = a => a.length ? a.join(", ") : "inga";
+  const s = el("section");
+  const sec = document.getElementById("just");
+  sec.append(el("h2", null, "Just nu"));
+  const p1 = el("p"); p1.append(el("b", null, "Sverige: "), "medvind i " + lista(g(DATA.se, "Medvind")) + ". Motvind i " + lista(g(DATA.se, "Motvind")) + ". Övriga är blandade.");
+  sec.append(p1);
+  if (DATA.us.length) { const p2 = el("p"); p2.append(el("b", null, "USA: "), "medvind i " + lista(g(DATA.us.filter(u => !u.extra), "Medvind")) + ". Motvind i " + lista(g(DATA.us.filter(u => !u.extra), "Motvind")) + "."); sec.append(p2); }
+}
+function marknad() {
+  const m = DATA.marknad, dl = document.getElementById("mk");
+  const post = (t, v, sm, k) => { const d = el("div"); d.append(el("dt", null, t), el("dd", k ? {class: k} : null, v)); if (sm) d.append(el("small", null, sm)); dl.append(d); };
+  post("OMXSPI mot 200 dagar", m.over200 ? "Över" : "Under", "Index " + sv(m.omx, 0), m.over200 ? "pos" : "neg");
+  post("OMXSPI 12 månader", pct(m.r12), "Senaste månaden " + pct(m.r1), cls(m.r12));
+  post("Från 12-månaderstopp", pct(m.dd), "Orolighet " + sv(m.vol, 0) + " % mot normalt " + sv(m.vol_med, 0) + " %", cls(m.dd));
+  const r = el("div"); r.append(el("dt", null, "Risk för momentumkrasch"), el("dd", null, el("span", {class: "pill " + (m.risk ? "o" : "b")}, m.risk ? "▼ Förhöjd" : "– Normal")));
+  r.append(el("small", null, "24 månader " + pct(m.r24))); dl.append(r);
+  document.getElementById("mknot").textContent = m.risk
+    ? "Marknaden har fallit de senaste 24 månaderna och är orolig eller studsar kraftigt. Då har momentumstrategier förlorat mest (Daniel & Moskowitz, 2016). Läs medvind-signalerna försiktigt."
+    : "Förhöjd risk för momentumkrasch betyder att marknaden fallit de senaste 24 månaderna och samtidigt är orolig eller studsar kraftigt. Det är då momentumstrategier har förlorat mest (Daniel & Moskowitz, 2016). Inget av det gäller nu.";
+}
+
+/* ---------- testgrafer ---------- */
+function farg(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function nice(lo, hi, n = 5) {
+  const span = hi - lo, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw);
+  const a = Math.floor(lo / step) * step, t = []; for (let v = a; v <= hi + step * 0.01; v += step) t.push(v);
+  return t;
+}
+function kurva(host, T, serier) {
+  host.replaceChildren();
+  const W = Math.max(280, host.clientWidth), H = W < 520 ? 230 : 280, m = {l: 40, r: 14, t: 12, b: 24};
+  const D = T.kurva.datum, n = D.length;
+  const all = serier.flatMap(s => s.v), t = nice(Math.min(...all) * 0.97, Math.max(...all) * 1.03);
+  const lo = t[0], hi = t[t.length - 1];
+  const X = i => m.l + i * (W - m.l - m.r) / (n - 1), Y = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  const svg = sv_("svg", {viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", tabindex: "0", "aria-label": "Värde över tid, 100 vid start. Detaljer finns i tabellen under grafen."});
+  t.forEach(v => { svg.append(sv_("line", {class: "grid", x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v)})); const tx = sv_("text", {class: "axl", x: m.l - 6, y: Y(v) + 4, "text-anchor": "end"}); tx.textContent = Math.round(v); svg.append(tx); });
+  const t0 = sv_("text", {class: "axl", x: X(0), y: H - 6, "text-anchor": "start"}); t0.textContent = manAr(D[0]); svg.append(t0);
+  D.forEach((d, i) => { if (d.slice(5, 7) === "01" && X(i) - X(0) > 64 && X(n - 1) - X(i) > 14) { const tx = sv_("text", {class: "axl", x: X(i), y: H - 6, "text-anchor": "middle"}); tx.textContent = d.slice(0, 4); svg.append(tx); } });
+  serier.forEach(s => {
+    const l = sv_("polyline", {class: "l", points: s.v.map((v, i) => X(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" ")}); l.style.stroke = s.farg; svg.append(l);
+  });
+  serier.forEach(s => { const c = sv_("circle", {class: "d", cx: X(n - 1), cy: Y(s.v[n - 1]), r: 4}); c.style.fill = s.farg; svg.append(c); });
+  const ch = sv_("line", {class: "ch", y1: m.t, y2: H - m.b, display: "none"}); svg.append(ch);
+  let k = n - 1;
+  const visa = (i, ev) => {
+    k = Math.max(0, Math.min(n - 1, i));
+    ch.setAttribute("x1", X(k)); ch.setAttribute("x2", X(k)); ch.setAttribute("display", "block");
+    visaTip(serier.map(s => ({namn: s.namn, v: sv(s.v[k], 0), farg: s.farg})), manAr(D[k]), ev);
+  };
+  svg.addEventListener("pointermove", ev => { const r = svg.getBoundingClientRect(); visa(Math.round(((ev.clientX - r.left) * (W / r.width) - m.l) / (W - m.l - m.r) * (n - 1)), ev); });
+  svg.addEventListener("pointerleave", () => { ch.setAttribute("display", "none"); gomTip(); });
+  svg.addEventListener("keydown", ev => {
+    if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return; ev.preventDefault();
+    const r = svg.getBoundingClientRect(); const i = ev.key === "ArrowLeft" ? k - 1 : k + 1; visa(i, {clientX: r.left + X(Math.max(0, Math.min(n - 1, i))) * (r.width / W), clientY: r.top + 20});
+  });
+  svg.addEventListener("blur", () => { ch.setAttribute("display", "none"); gomTip(); });
+  host.append(svg);
+}
+function testkort(id, rubrik, T) {
+  const art = el("article", {class: "test", id});
+  if (!T) { art.append(el("h2", null, rubrik), el("p", {class: "muted"}, "Underlag saknas ännu.")); return art; }
+  const a = T.tabell[0], ref = T.tabell[T.tabell.length - 1 - (T.kurva.omx ? 1 : 0)];
+  const rob = T.robust, slar = rob.filter(r => r.extra > 0).length;
+  art.append(el("h2", null, rubrik));
+  art.append(el("p", null, `Regeln: vid varje månadsskifte köps de tre segment som stigit mest de senaste tolv månaderna (utom sista månaden) och hålls en månad, lika vikt. Period ${manAr(T.start)} till ${manAr(T.slut)}, ${T.manader} månader.`));
+  const diff = a.cagr - ref.cagr;
+  art.append(el("p", null, el("b", null, `${pct(a.cagr)} per år mot ${pct(ref.cagr)} för jämförelsen (${ref.namn.toLowerCase()}), ${Math.abs(diff) < 0.05 ? "ingen skillnad" : (diff > 0 ? "+" : "−") + sv(Math.abs(diff)) + " procentenheter"}. `),
+    `Regeln låg över jämförelsen i ${Math.round(T.andel_over)} % av månaderna och i ${slar} av ${rob.length} kombinationer av tidsfönster och antal segment. ` +
+    (T.tstat == null ? "" : `T-värdet för månadsskillnaden är ${sv(T.tstat, 1)}; över 2 brukar räknas som statistiskt säkert, ${Math.abs(T.tstat) >= 2 ? "och det är uppnått här." : "och det är inte uppnått här."}`)));
+  const bb = T.tabell[1];
+  if (bb && ref && bb.maxdd > ref.maxdd + 5) art.append(el("p", null, `Med trendfilter, alltså bara segment som ligger över sitt 10-månaderssnitt, blev den största nedgången ${pct(bb.maxdd)} mot ${pct(ref.maxdd)} för jämförelsen. Avkastningen per år blev ${pct(bb.cagr)}.`));
+  const leg = el("div", {class: "leg"});
+  const serier = [{id: "a", namn: "De 3 starkaste", farg: farg("--s1")}, {id: "b", namn: "…bara om över 10-månaderssnittet", farg: farg("--s2")}, {id: "ref", namn: T.ref_namn, farg: farg("--ref")}];
+  if (T.kurva.omx) serier.push({id: "omx", namn: "OMXSPI (kursindex)", farg: farg("--ref2")});
+  serier.forEach(s => { const sp = el("span", null, el("i"), s.namn); sp.firstChild.style.borderTopColor = s.farg; sp.dataset.id = s.id; leg.append(sp); s.v = T.kurva[s.id]; });
+  art.append(leg);
+  const host = el("div", {class: "diag"}); art.append(host);
+  art._draw = () => { serier.forEach(s => { s.farg = farg({a: "--s1", b: "--s2", ref: "--ref", omx: "--ref2"}[s.id]); }); [...leg.children].forEach((c, i) => { c.firstChild.style.borderTopColor = serier[i].farg; }); kurva(host, T, serier); };
+  // tabell
+  const tb = el("div", {class: "tbl"}), tab = el("table");
+  tab.append(el("thead", null, el("tr", null, ...["Strategi", "Per år", "Svängning", "Avkastning/risk", "Största nedgång"].map(h => el("th", null, h)))));
+  const tbody = el("tbody");
+  T.tabell.forEach((r, i) => tbody.append(el("tr", i >= 3 ? {class: "refrad"} : null, el("td", null, r.namn), el("td", {class: "n"}, pct(r.cagr)), el("td", {class: "n"}, sv(r.vol) + " %"), el("td", {class: "n"}, sv(r.sharpe, 2)), el("td", {class: "n"}, pct(r.maxdd)))));
+  tab.append(tbody); tb.append(tab); art.append(tb);
+  // robusthet
+  art.append(el("h3", null, "Håller det för andra val?"));
+  art.append(el("p", {class: "muted"}, "Skillnad mot jämförelsen i procentenheter per år, för olika tidsfönster (rader, månader) och antal segment (kolumner). Grönt betyder att regeln slog jämförelsen."));
+  const rb = el("div", {class: "robust"});
+  rb.append(el("div", {class: "h"}, "Fönster"), ...[2, 3, 4].map(N => el("div", {class: "h"}, N + " segment")));
+  [3, 6, 12].forEach(L => { rb.append(el("div", {class: "h"}, L + " mån")); [2, 3, 4].forEach(N => { const r = T.robust.find(x => x.L === L && x.N === N); rb.append(el("div", {class: r ? (r.extra > 0 ? "p" : "m") : "h"}, r ? pct(r.extra) : "–")); }); });
+  art.append(rb);
+  art.append(el("p", {class: "nota"}, T.kommentar));
+  // värden per år
+  const d = el("details"); d.append(el("summary", null, "Visa värden per år (100 vid start)"));
+  const t2 = el("table"); const hh = el("tr", null, el("th", null, "Slutet av"), ...serier.map(s => el("th", null, s.namn)));
+  t2.append(el("thead", null, hh));
+  const tb2 = el("tbody"), D = T.kurva.datum;
+  D.forEach((x, i) => { if (i === D.length - 1 || x.slice(0, 4) !== D[i + 1].slice(0, 4) || i === 0) tb2.append(el("tr", null, el("td", null, manAr(x)), ...serier.map(s => el("td", {class: "n"}, sv(s.v[i], 0))))); });
+  t2.append(tb2); const w = el("div", {class: "tbl"}, t2); d.append(w); art.append(d);
+  return art;
+}
+
+/* ---------- start ---------- */
+document.getElementById("stamp").textContent = "Sverige " + datAr(DATA.kursdag) + (DATA.us_dag ? " · USA " + dat(DATA.us_dag) : "");
+just(); marknad();
+document.getElementById("nota-se").textContent = "Rangordnat efter styrka. " + DATA.antal_bolag + " likvida bolag med insiderköp sedan 2016 (inte hela börsen), indelade i " + DATA.se.length + " segment. Siffrorna är avkastning mot snittet för alla likvida bolag, i procent.";
+const lse = document.getElementById("l-se"); lse.append(hdr(false)); DATA.se.forEach(z => lse.append(rad(z, DATA.se_datum, false)));
+document.getElementById("nota-us").textContent = "Elva sektor-ETF:er från S&P 500 (SPDR) och två smalare teman, mot S&P 500. Siffrorna är avkastning mot S&P 500, i procent. USA-kurserna är från föregående dags stängning.";
+const lus = document.getElementById("l-us");
+if (DATA.us.length) {
+  lus.append(hdr(true)); let tema = false;
+  DATA.us.forEach(z => { if (z.extra && !tema) { tema = true; lus.append(el("li", {class: "tema"}, "Smalare teman")); } lus.append(rad(z, DATA.us_datum, true)); });
+} else lus.append(el("li", null, "USA-data saknas ännu."));
+const tr = document.getElementById("testrad");
+const kort = [testkort("t-se", "Sverige: håll de tre starkaste", DATA.test_se), testkort("t-us", "USA: samma regel på sektor-ETF:er", DATA.test_us)];
+kort.forEach(k => tr.append(k));
+const flik = {se: ["b-se", "p-se"], us: ["b-us", "p-us"], test: ["b-test", "p-test"]};
+function visaFlik(k) {
+  for (const f in flik) { document.getElementById(flik[f][0]).setAttribute("aria-pressed", f === k); document.getElementById(flik[f][1]).hidden = f !== k; }
+  if (k === "test") ritaTest();
+  try { localStorage.setItem("sektorflik", k); } catch (e) {}
+}
+function ritaTest() { kort.forEach(k => k._draw && k._draw()); }
+for (const f in flik) document.getElementById(flik[f][0]).addEventListener("click", () => visaFlik(f));
+let start = "se";
+try { const s = localStorage.getItem("sektorflik"); if (s && flik[s]) start = s; } catch (e) {}
+visaFlik(start);
+addEventListener("resize", () => { if (!document.getElementById("p-test").hidden) ritaTest(); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (!document.getElementById("p-test").hidden) ritaTest(); });
+new MutationObserver(() => { if (!document.getElementById("p-test").hidden) ritaTest(); }).observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]});
+</script>

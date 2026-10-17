@@ -1,0 +1,54 @@
+name: OHLC för ljusstakar
+
+# Hämtar Open/High/Low/Close för bolagen i bevakningslistan (Yahoo) och sparar ohlc.csv.
+# Egen concurrency-grupp och rör bara sin egen fil, så den kan köras medan datahämtningen pågår.
+on:
+  # Inget cron (GitHub försenade körningen). Startas varje kväll av den schemalagda uppdateringen av bevakningssidan.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ohlc
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas yfinance lxml
+      - name: Hämta OHLC
+        timeout-minutes: 15
+        run: |
+          set -o pipefail
+          python -u ohlc.py 2>&1 | tee ohlc_logg.txt
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in ohlc.csv ohlc_logg.txt; do git add "$f" || true; done
+          git diff --cached --quiet || git commit -m "OHLC $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && break
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 20 + 5))
+          done

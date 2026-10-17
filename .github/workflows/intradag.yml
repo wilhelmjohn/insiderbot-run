@@ -1,0 +1,84 @@
+name: Intradag
+
+# Bevakar FI under börsens öppettider och skickar notis för nya intressanta fall.
+# Tätt (var 5:e minut) vid öppning och stängning, glesare (var 10:e) mitt på dagen. Tider i UTC; fönstren
+# täcker 09:00-11:00 och 15:30-17:30 svensk sommartid (08:00-10:00 och 14:30-16:30 vintertid). intradag.py hoppar
+# själv över körningar utanför 08:55-17:45 svensk tid.
+#
+# KOSTNAD: en privat repo har 2 000 gratisminuter i månaden (3 000 med Pro) och varje körning debiteras minst
+# en minut. Det här schemat ger ca 75 körningar per börsdag (ca 1 650 min/månad). Resten av flödet tar ca 550 min.
+# Sätt en Actions-budget i GitHub (Settings > Billing > Budgets) som tak så att det inte kan bli dyrare.
+# GitHub kör dessutom schemalagda jobb med viss fördröjning (ofta 5-20 minuter).
+on:
+  #AV# schedule:
+    #AV# - cron: "*/5 7-8 * * 1-5"       # 07:00-08:55 UTC
+    #AV# - cron: "*/10 9-12 * * 1-5"     # 09:00-12:50 UTC
+    #AV# - cron: "0,10,20 13 * * 1-5"    # 13:00-13:20 UTC
+    #AV# - cron: "*/5 14-15 * * 1-5"     # 14:00-15:55 UTC
+  workflow_dispatch:
+    inputs:
+      tvinga:
+        description: "Kör även om börsen är stängd (test)"
+        type: boolean
+        default: false
+      vandning_test:
+        description: "Skicka vändningssignaler för knivar de senaste 10 handelsdagarna (test, sparar inte)"
+        type: boolean
+        default: false
+      skicka_om:
+        description: "Skicka om notiser för dessa tickers (kommaseparerade, test), t.ex. REJL-B.ST,CALVIK.ST"
+        type: string
+        default: ""
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: insiderbot        # delar grupp med dagliga körningen, så filerna aldrig skrivs samtidigt
+  cancel-in-progress: false
+
+jobs:
+  intradag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # ref: main = senaste läget när jobbet startar (annars används commit från den tidpunkt körningen köades,
+      # vilket gav gammal data och sammanslagningskonflikter när en körning väntat i kön)
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/workflows/intradag.yml
+
+      - name: Installera beroenden
+        run: pip install requests pandas numpy lxml matplotlib scipy
+
+      - name: Hämta dagens poster och flagga
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TVINGA: ${{ inputs.tvinga }}
+        run: |
+          if [ "${{ inputs.vandning_test }}" = "true" ]; then
+            pip install scipy && python vandning.py --dagar 10
+          elif [ -n "${{ inputs.skicka_om }}" ]; then
+            python skicka_om.py "${{ inputs.skicka_om }}"
+          else
+            python intradag.py ${{ inputs.tvinga && '--tvinga' || '' }}
+          fi

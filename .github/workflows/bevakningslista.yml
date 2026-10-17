@@ -1,0 +1,42 @@
+name: Bevakningslista
+
+# Skickar bevakningslistan som tabellbilder med kursutveckling (1D, 7D, 1M efter att fallet kom på listan) till ntfy.
+# Varje dag 18:15 UTC (20:15 svensk sommartid, 19:15 vintertid), efter börsstängning och dagens datakörning. Räknar om bevakning.csv först.
+# Skriver inget till repot, så den behöver inte dela concurrency-grupp med datahämtningen.
+# Dagligt schema avstängt (push av listan oönskad); kör manuellt vid behov via workflow_dispatch.
+on:
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  skicka:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests pandas numpy lxml matplotlib scipy
+      - name: Räkna om bevakningen
+        timeout-minutes: 8
+        run: python bevakning.py
+      - name: Skicka bevakningslistan
+        timeout-minutes: 3
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python bevakningslista.py

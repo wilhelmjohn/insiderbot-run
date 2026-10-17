@@ -1,0 +1,87 @@
+name: Nyheter
+
+on:
+  #AV# schedule:
+    # Varje dag 17:30 UTC, efter insiderboten. Hämtar alla färdiga dagar fram till igår.
+    #AV# - cron: "30 17 * * *"
+  workflow_dispatch:
+    inputs:
+      fran:
+        description: "Första dag (standard 2021-01-01)"
+        required: false
+        default: ""
+      prova:
+        description: "Bara diagnos av API:t (skriver nyheter_diagnos.txt), hämtar inga nyheter"
+        required: false
+        default: ""
+      lage:
+        description: "bolag = hämta historik per bolag (når långt bakåt, kör vid backfill); tomt = senaste meddelanden"
+        required: false
+        default: ""
+      till:
+        description: "Sista dag, t.ex. 2021-12-31 för att bara ladda 2021 (tomt = fram till igår)"
+        required: false
+        default: ""   # kör manuellt första gången (backfill från 2024)
+
+env:
+  PYTHONUNBUFFERED: "1"   # visa utskrifter direkt i loggen, inte först när bufferten är full
+
+permissions:
+  contents: read
+  actions: write     # för att starta nästa del automatiskt
+
+concurrency:
+  group: nyheter      # egen grupp: kan köras samtidigt som insiderboten (de skriver olika filer)
+  cancel-in-progress: false
+
+jobs:
+  nyheter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      # ref: main = senaste läget när jobbet startar (annars används commit från den tidpunkt körningen köades,
+      # vilket gav gammal data och sammanslagningskonflikter när en körning väntat i kön)
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installera beroenden
+        run: pip install requests pandas lxml
+
+      - name: Hämta nyheter (Nasdaq Nordic)
+        timeout-minutes: 240
+        env:
+          FRAN: ${{ inputs.fran || '2021-01-01' }}
+          TILL: ${{ inputs.till }}
+        run: |
+          if [ -n "${{ inputs.prova }}" ]; then python nyheter.py --prova "${{ inputs.prova }}"; exit 0; fi
+          if [ "${{ inputs.lage }}" = "bolag" ]; then python nyheter.py --per-bolag --fran "$FRAN" --max-minuter 200; exit 0; fi
+          echo "KVAR_FORE=$(python nyheter.py --kvar --fran "$FRAN" ${TILL:+--till "$TILL"} | tail -1 | awk '{print $1}')" >> "$GITHUB_ENV"
+          python nyheter.py --fran "$FRAN" ${TILL:+--till "$TILL"} 
+
+      # always(): spara det som hunnit hämtas även om steget ovan avbryts
+      - name: Spara nyheterna i repot
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add nyheter.csv nyhetsbolag.csv nyheter_dagar.txt nyheter_diagnos.txt nyheter_bolag_klara.txt || true
+          git diff --cached --quiet || git commit -m "Uppdatera nyheter $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            sleep $((RANDOM % 20 + 5))
+          done

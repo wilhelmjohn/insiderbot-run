@@ -1,0 +1,52 @@
+name: Snabbkurs
+
+# Hämtar kurser (OHLCV) för valfria tickers på någon minut och sparar snabbkurs.csv. Rör inga andra filer,
+# egen concurrency-grupp så den aldrig väntar på datahämtningen.
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Tickers, kommaseparerade (t.ex. INFRA.ST,SAND.ST)"
+        required: true
+      period:
+        description: "Period (Yahoo), t.ex. 1mo, 6mo, 1y"
+        required: false
+        default: "6mo"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snabbkurs
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pandas yfinance
+      - run: python -u snabbkurs.py "${{ inputs.tickers }}" "${{ inputs.period }}"
+      - name: Spara
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add snabbkurs.csv || true
+          git diff --cached --quiet || git commit -m "Snabbkurs ${{ inputs.tickers }}"
+          for i in 1 2 3; do git pull --rebase --autostash origin main && git push && break; sleep 5; done

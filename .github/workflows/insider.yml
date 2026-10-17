@@ -1,0 +1,153 @@
+name: Insiderbot
+
+on:
+  # Inget cron: GitHubs schemaläggning försenade körningen ca 12 timmar (startade ca 05:10 UTC dagen efter).
+  # Den startas i stället varje kväll 19:00 (svensk tid) av den schemalagda uppgiften som uppdaterar bevakningssidan
+  # (workflow_dispatch med inkl_idag=true, så att dagens kurser och publiceringar ingår).
+  workflow_dispatch:
+    inputs:
+      fran:
+        description: "Första dag (standard 2021-01-01)"
+        required: false
+        default: ""
+      till:
+        description: "Sista dag, t.ex. 2021-12-31 för att bara ladda 2021 (tomt = fram till igår)"
+        required: false
+        default: ""   # så att du kan starta den manuellt (t.ex. första gången)
+      inkl_idag:
+        description: "true = hämta även idag (kvällskörning efter stängning; dagen hämtas om nästa körning)"
+        required: false
+        default: ""
+      morgonnotis:
+        description: "true = skicka morgonsammanfattningen (insyn sedan förra vardagen, även när inget nytt hänt)"
+        required: false
+        default: ""
+      max_minuter:
+        description: "Avbryt hämtningen efter så här många minuter (test; tomt = 190)"
+        required: false
+        default: ""
+
+env:
+  PYTHONUNBUFFERED: "1"   # visa utskrifter direkt i loggen, inte först när bufferten är full
+
+permissions:
+  contents: read      # behövs för att spara CSV-filerna i repot
+
+concurrency:
+  group: insiderbot   # aldrig två körningar samtidigt
+  cancel-in-progress: false
+
+jobs:
+  uppdatera:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300   # första körningen (backfill från 2024, ca 2 timmar) kan ta en stund
+    steps:
+      # ref: main = senaste läget när jobbet startar (annars används commit från den tidpunkt körningen köades,
+      # vilket gav gammal data och sammanslagningskonflikter när en körning väntat i kön)
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - name: Lägg in koden bredvid datan
+        run: cp _kod/*.py _kod/*_mall.html .
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installera beroenden
+        run: pip install requests pandas lxml yfinance scipy matplotlib odfpy
+
+      # Eget tidstak för steget: hinner det inte klart avbryts det här och sparasteget nedan
+      # körs ändå (if: always()), så allt som hämtats behålls. Nästa körning fortsätter.
+      - name: Hämta insynshandel och analysera
+        timeout-minutes: 200
+        env:
+          FRAN: ${{ inputs.fran || '2021-01-01' }}
+          TILL: ${{ inputs.till }}
+          MAXMIN: ${{ inputs.max_minuter || '190' }}
+          IDAG: ${{ inputs.inkl_idag }}
+        run: |
+          set -o pipefail
+          # loggen sparas i repot (Actions-loggarna går inte att läsa utifrån)
+          timeout "$((MAXMIN * 60))" python -u insider_bot.py --fran "$FRAN" ${TILL:+--till "$TILL"} $([ "$IDAG" = "true" ] && echo --inkl-idag) --dagar 3 2>&1 | tee hamtning_logg.txt
+
+      # Kurshistorik för bolagen i insiderkop.csv. Får inte stoppa sparandet av
+      # insynsdatan om Yahoo krånglar, därför continue-on-error.
+      - name: Hämta kurshistorik
+        continue-on-error: true
+        timeout-minutes: 50       # eget tidstak så att sparasteget alltid hinner köras (jobbet har 300 min totalt)
+        run: python kurser.py
+
+      - name: Blankning (FI:s register)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python blankning.py
+
+      - name: Bevakningslista (aktuella fall)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python bevakning.py
+
+      - name: Marknadsmått (trend och vändningsvarning)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python marknad.py
+
+      - name: Rapportdagar och marknadens reaktion
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python rapporter.py
+
+      # Notis till telefonen (ntfy) för nya fall. Kräver hemligheten NTFY_TOPIC i repot;
+      # utan den skickas ingenting.
+      - name: Skicka notiser
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python notis.py
+
+      # Morgonsammanfattning (bara när morgonkörningen startas med morgonnotis=true)
+      - name: Skicka morgonsammanfattning
+        if: ${{ inputs.morgonnotis == 'true' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python notis.py --morgon
+
+      # Vändningssignal för knivar (volymspik + RSI över 35 + uppdag). Liten edge, se vandning.py.
+      - name: Vändningssignaler för knivar
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python vandning.py
+
+      # always(): spara det som hunnit hämtas även om steget ovan avbryts
+      - name: Spara historiken i repot
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add hamtning_logg.txt insiderhandel.csv insiderkop.csv hamtade_dagar.txt traffar.csv kluster.csv kurser.csv kurser_fel.txt kurser_prov.txt aktier.csv ticker_map.csv bevakning.csv rapporter.csv marknad.csv notis_skickade.txt blankning.csv blankning_dag.csv || true
+          git diff --cached --quiet || git commit -m "Uppdatera insynshandel $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && break
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 20 + 5))
+          done
+          # Misslyckades pushen: spara allt på en reservgren så att inget går förlorat
+          git fetch origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Push till main misslyckades, sparar på reservgren"
+            git push origin HEAD:refs/heads/reserv-${GITHUB_RUN_ID}
+          fi
