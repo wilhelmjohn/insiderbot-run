@@ -119,6 +119,12 @@ def data() -> dict:
             "nyhet_kalla": "" if pd.isna(r.get("Nyhet_kalla")) else str(r["Nyhet_kalla"]),
             "aterkop": "" if pd.isna(r.get("Aterkop")) else str(r["Aterkop"]),
         })
+    sf = {}
+    sfp = MAPP / "bev_sammanfattning.json"
+    if sfp.exists():
+        sf = json.loads(sfp.read_text(encoding="utf-8"))
+    for x in rader:
+        x["sf"] = sf.get(x["ticker"])
     bilder = {}
     for _, r in d.iterrows():
         f = MAPP / "diagram" / str(r.get("Diagram", ""))
