@@ -126,7 +126,9 @@ def data() -> dict:
     import bev_sf
     si = pd.read_csv(MAPP / "sektor_info.csv").set_index("Ticker")
     ohl = pd.read_csv(MAPP / "ohlc.csv", parse_dates=["Datum"]) if (MAPP / "ohlc.csv").exists() else None
+    djp = json.loads((MAPP / "bev_djup.json").read_text(encoding="utf-8")) if (MAPP / "bev_djup.json").exists() else {}
     for x in rader:
+        x["djup"] = djp.get(x["ticker"])
         x["sf"] = sf.get(x["ticker"])
         if x["sf"]:
             tk = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"

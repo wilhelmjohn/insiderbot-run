@@ -3,6 +3,7 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -15,6 +16,8 @@ import numpy as np, pandas as pd
 HER = Path(__file__).resolve().parent
 TEXT = HER / "bev_sammanfattning.json"
 STATE = HER / "bev_sf_state.json"
+DJUP = HER / "bev_djup.json"
+DELAR = [("affaren", "Affären"), ("kassaflode", "Kassaflöde och balansräkning"), ("varderng", "Värdering"), ("katalysatorer", "Katalysatorer"), ("insyn", "Insyn och ägare"), ("risk", "Risk")]
 IDAG = pd.Timestamp.now(tz="Europe/Stockholm").tz_localize(None).normalize()
 GRANS = dict(handelser_n=(3, 10), handelse_len=(8, 150), kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200), villkor_n=(2, 4), villkor_len=(15, 260))
 FORBJUDET = re.compile(r"\b(köp nu|sälj nu|bör köpa|bör sälja|rekommenderar (?:att )?(?:köpa|sälja)|köpläge|säkert köp|kan inte förlora)\b", re.I)
@@ -30,6 +33,9 @@ def jskriv(p, x):
 
 
 def f(x, d=1):
+    if isinstance(x, str):
+        try: x = float(x)
+        except ValueError: return x or "–"
     return "–" if x is None or (isinstance(x, float) and np.isnan(x)) else f"{x:,.{d}f}".replace(",", " ").replace(".", ",")
 
 
@@ -266,6 +272,41 @@ def spara(d, k):
     print(f"{k}: sparad ({len(tx[k]['kort'])}+{len(tx[k]['bild'])} tecken)")
 
 
+def kontrollera_djup(x):
+    fel = []
+    sl = x.get("slutsats")
+    if not isinstance(sl, str) or not 80 <= len(sl) <= 700: fel.append("slutsats ska vara 80-700 tecken")
+    elif FORBJUDET.search(sl): fel.append("slutsats innehåller råd om köp/sälj")
+    fr = x.get("fraga")
+    if not isinstance(fr, str) or not 20 <= len(fr) <= 250: fel.append("fraga ska vara 20-250 tecken (den konkreta frågan djupanalysen svarar på)")
+    dl = x.get("delar")
+    if not isinstance(dl, dict): fel.append("delar saknas"); dl = {}
+    for k, namn in DELAR:
+        v = dl.get(k)
+        if not (isinstance(v, dict) and isinstance(v.get("p"), int) and 0 <= v["p"] <= 5 and isinstance(v.get("t"), str) and 30 <= len(v["t"]) <= 450): fel.append(f"del {k} ska vara {{p: 0-5, t: 30-450 tecken}}"); continue
+        if FORBJUDET.search(v["t"]): fel.append(f"del {k} innehåller råd om köp/sälj")
+    kl = x.get("kallor")
+    if not isinstance(kl, list) or not 2 <= len(kl) <= 10: fel.append("kallor ska vara 2-10 par [titel, url]")
+    else:
+        for k in kl:
+            if not (isinstance(k, list) and len(k) == 2 and isinstance(k[1], str) and k[1].startswith("https://") and k[0].strip()): fel.append(f"ogiltig källa: {k}")
+    return fel
+
+
+def spara_djup(d, k):
+    t = namn_till_tick(k); x = json.loads(sys.stdin.read())
+    if t not in d["b"].index: sys.exit(f"{t} finns inte i bevakning.csv")
+    fel = kontrollera_djup(x)
+    if fel: sys.exit("Sparades inte:\n- " + "\n- ".join(fel))
+    c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
+    dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
+    dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
+                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], datum=str(IDAG.date()),
+                         kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
+    jskriv(DJUP, dj)
+    print(f"{kort_t(t)}: djupanalys sparad, poäng {dj[kort_t(t)]['poang']}/100 ({summa}/30)")
+
+
 def main():
     a = sys.argv[1:]
     if not a: sys.exit(__doc__)
@@ -290,6 +331,8 @@ def main():
         for t in ts: print(dossier(d, t, komp)); print()
     elif cmd == "spara":
         spara(d, rest[0])
+    elif cmd == "spara-djup":
+        spara_djup(d, rest[0])
     else:
         sys.exit(__doc__)
 
