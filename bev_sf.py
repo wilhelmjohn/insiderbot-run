@@ -16,7 +16,7 @@ HER = Path(__file__).resolve().parent
 TEXT = HER / "bev_sammanfattning.json"
 STATE = HER / "bev_sf_state.json"
 IDAG = pd.Timestamp.now(tz="Europe/Stockholm").tz_localize(None).normalize()
-GRANS = dict(handelser_n=(3, 10), handelse_len=(8, 150), kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200))
+GRANS = dict(handelser_n=(3, 10), handelse_len=(8, 150), kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200), villkor_n=(2, 4), villkor_len=(15, 260))
 FORBJUDET = re.compile(r"\b(köp nu|sälj nu|bör köpa|bör sälja|rekommenderar (?:att )?(?:köpa|sälja)|köpläge|säkert köp|kan inte förlora)\b", re.I)
 STARK_TYP = {"rapport", "vinstvarning", "prognoshojning", "nyemission", "m_and_a", "ledning"}
 
@@ -230,7 +230,7 @@ def kontrollera(x):
         if not a <= len(v) <= b: fel.append(f"{k} har {len(v)} tecken (ska vara {a}-{b})")
         if "\n" in v: fel.append(f"{k} får inte innehålla radbrytningar")
         if FORBJUDET.search(v): fel.append(f"{k} innehåller råd om köp/sälj: skriv beskrivande")
-    for nyckel, namn in (("belagt", "belagt"), ("bevaka", "bevaka")):
+    for nyckel, namn in (("belagt", "belagt"), ("bevaka", "bevaka"), ("villkor", "villkor")):
         lst = x.get(nyckel); n0, n1 = GRANS[nyckel + "_n"]; l0, l1 = GRANS[nyckel + "_len"]
         if not isinstance(lst, list) or not n0 <= len(lst) <= n1: fel.append(f"{namn} ska vara en lista med {n0}-{n1} punkter"); continue
         for s in lst:
@@ -258,7 +258,7 @@ def spara(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     tx, st = jlas(TEXT), jlas(STATE); k = kort_t(t)
     tx[k] = dict(kort=x["kort"].strip(), bild=x["bild"].strip(), belagt=[s.strip() for s in x["belagt"]], tolkning=x["tolkning"].strip(),
-                 bevaka=[s.strip() for s in x["bevaka"]], handelser=sorted(x["handelser"], key=lambda h: h["d"]), kallor=x["kallor"], uppdaterad=str(IDAG.date()))
+                 bevaka=[s.strip() for s in x["bevaka"]], villkor=[s.strip() for s in x["villkor"]], handelser=sorted(x["handelser"], key=lambda h: h["d"]), kallor=x["kallor"], uppdaterad=str(IDAG.date()))
     mfn = d["mfn"][d["mfn"].Ticker == t]; ik = insyn(d, t, IDAG - pd.Timedelta(days=270))
     st[k] = dict(datum=str(c.index[-1].date()), kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), mfn=sorted(set(mfn.Lank.tolist())),
                  insyn=sorted(set(ik.id.tolist())), vand=tillstand(d, t) if len(c) > 60 else None)
