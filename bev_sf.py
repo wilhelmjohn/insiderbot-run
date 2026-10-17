@@ -3,7 +3,7 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
-  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -301,6 +301,11 @@ def kontrollera_djup(x):
         v = dl.get(k)
         if not (isinstance(v, dict) and isinstance(v.get("p"), int) and 0 <= v["p"] <= 5 and isinstance(v.get("t"), str) and 30 <= len(v["t"]) <= 450): fel.append(f"del {k} ska vara {{p: 0-5, t: 30-450 tecken}}"); continue
         if FORBJUDET.search(v["t"]): fel.append(f"del {k} innehåller råd om köp/sälj")
+    hv = x.get("handelser")
+    if not isinstance(hv, list) or not GRANS["handelser_n"][0] <= len(hv) <= GRANS["handelser_n"][1]: fel.append("handelser ska vara 3-10 poster {d, t} (datum och text till grafen)")
+    else:
+        for h in hv:
+            if not (isinstance(h, dict) and isinstance(h.get("d"), str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", h["d"]) and isinstance(h.get("t"), str) and GRANS["handelse_len"][0] <= len(h["t"]) <= GRANS["handelse_len"][1]): fel.append(f"ogiltig händelse: {str(h)[:50]}")
     tm = x.get("timing")
     if not isinstance(tm, str) or not 60 <= len(tm) <= 600: fel.append("timing ska vara 60-600 tecken (kommentar om tidpunkten: kommande datum, nivåer, vad som gör tidpunkten bättre eller sämre; inget råd)")
     elif FORBJUDET.search(tm): fel.append("timing innehåller råd om köp/sälj")
@@ -330,7 +335,7 @@ def spara_djup(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
     dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
-                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(), timing=x["timing"].strip(),
+                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(), handelser=sorted(x["handelser"], key=lambda h: h["d"]), timing=x["timing"].strip(),
                          scenarier=[dict(n=r["n"].strip(), f=r["f"].strip(), lag=r["lag"], hog=r["hog"], pl=round((r["lag"] / float(c.iloc[-1]) - 1) * 100), ph=round((r["hog"] / float(c.iloc[-1]) - 1) * 100)) for r in x["scenarier"]], datum=str(IDAG.date()),
                          kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
     jskriv(DJUP, dj)
