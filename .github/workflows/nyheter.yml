@@ -1,9 +1,9 @@
 name: Nyheter
 
 on:
-  #AV# schedule:
+  schedule:
     # Varje dag 17:30 UTC, efter insiderboten. Hämtar alla färdiga dagar fram till igår.
-    #AV# - cron: "30 17 * * *"
+    - cron: "30 17 * * *"
   workflow_dispatch:
     inputs:
       fran:

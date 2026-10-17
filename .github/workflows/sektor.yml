@@ -7,8 +7,8 @@ on:
       vad:
         description: "info, etf eller tomt för båda"
         default: ""
-  #AV# schedule:
-    #AV# - cron: "50 16 * * 1-5"   # vardagar, efter att kurserna hämtats
+  schedule:
+    - cron: "50 16 * * 1-5"   # vardagar, efter att kurserna hämtats
 
 concurrency:
   group: sektor

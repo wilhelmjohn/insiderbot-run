@@ -3,8 +3,8 @@ name: Rapportkalender
 # Hämtar tidigare och kommande rapportdatum (Yahoo) för bolagen i bevakningslistan och sparar rapportkalender.csv.
 # Egen concurrency-grupp och rör bara sin egen fil, så den kan köras medan datahämtningen pågår.
 on:
-  #AV# schedule:
-    #AV# - cron: "20 16 * * *"
+  schedule:
+    - cron: "20 16 * * *"
   workflow_dispatch:
 
 permissions:

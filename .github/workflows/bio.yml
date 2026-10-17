@@ -5,9 +5,9 @@ on:
       ny:
         description: "Ny genomgång av hela börsen (ja/nej)"
         default: "nej"
-  #AV# schedule:
-    #AV# - cron: "20 16 * * 1-5"   # vardagar efter stängning
-    #AV# - cron: "30 15 * * 0"     # söndag: ny genomgång av börsen
+  schedule:
+    - cron: "20 16 * * 1-5"   # vardagar efter stängning
+    - cron: "30 15 * * 0"     # söndag: ny genomgång av börsen
 concurrency:
   group: bio
 permissions:

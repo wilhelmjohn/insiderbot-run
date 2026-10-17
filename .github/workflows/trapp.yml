@@ -1,8 +1,8 @@
 name: trapp
 on:
   workflow_dispatch:
-  #AV# schedule:
-    #AV# - cron: "10 16 * * 1-5"   # ca 18:10 svensk tid, efter stängning
+  schedule:
+    - cron: "10 16 * * 1-5"   # ca 18:10 svensk tid, efter stängning
 concurrency:
   group: volscreen
 permissions:

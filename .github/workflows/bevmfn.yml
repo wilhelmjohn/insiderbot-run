@@ -8,8 +8,8 @@ on:
       minuter:
         description: "Högsta antal minuter för sökningen"
         default: "30"
-  #AV# schedule:
-    #AV# - cron: "30 15 * * 1-5"   # före kvällens körning av bevakningen
+  schedule:
+    - cron: "30 15 * * 1-5"   # före kvällens körning av bevakningen
 
 concurrency:
   group: bevmfn

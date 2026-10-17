@@ -5,8 +5,8 @@ on:
       antal:
         description: "Antal kandidater i urvalet"
         default: "40"
-  #AV# schedule:
-    #AV# - cron: "0 15 * * 0"   # söndag ca 17-18 svensk tid
+  schedule:
+    - cron: "0 15 * * 0"   # söndag ca 17-18 svensk tid
 concurrency:
   group: volscreen
 permissions:

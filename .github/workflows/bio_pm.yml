@@ -1,8 +1,8 @@
 name: bio_pm
 on:
   workflow_dispatch:
-  #AV# schedule:
-    #AV# - cron: "17 5-17/2 * * 1-5"   # vardagar, varannan timme
+  schedule:
+    - cron: "17 5-17/2 * * 1-5"   # vardagar, varannan timme
 concurrency:
   group: bio_pm
 permissions:
