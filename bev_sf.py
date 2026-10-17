@@ -2,7 +2,7 @@
 
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
-  python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, kallor) och sparar i bev_sammanfattning.json
+  python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -16,7 +16,7 @@ HER = Path(__file__).resolve().parent
 TEXT = HER / "bev_sammanfattning.json"
 STATE = HER / "bev_sf_state.json"
 IDAG = pd.Timestamp.now(tz="Europe/Stockholm").tz_localize(None).normalize()
-GRANS = dict(kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200))
+GRANS = dict(handelser_n=(3, 10), handelse_len=(8, 150), kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200))
 FORBJUDET = re.compile(r"\b(köp nu|sälj nu|bör köpa|bör sälja|rekommenderar (?:att )?(?:köpa|sälja)|köpläge|säkert köp|kan inte förlora)\b", re.I)
 STARK_TYP = {"rapport", "vinstvarning", "prognoshojning", "nyemission", "m_and_a", "ledning"}
 
@@ -69,6 +69,43 @@ def peers(d, t):
         lst = [x for x in ok if si.loc[x, kol] == si.loc[t, kol]]
         if len(lst) >= 4: return f"{si.loc[t, kol]} ({len(lst)} svenska bolag >1 mdr)", lst
     return "", []
+
+
+def graf(p, si, t, n=250):
+    """Serier till grafen: bolagets kurs och branschens (medianen av dagsavkastningen bland peers, daglig ombalansering), båda satta till 100 första dagen."""
+    c = p[t].dropna().tail(n)
+    if len(c) < 60: return None
+    nm, pl = peers({"si": si, "p": p}, t)
+    k = (c / c.iloc[0] * 100).round(1)
+    if pl:
+        r = p[pl].pct_change().median(axis=1).reindex(c.index).fillna(0.0); r.iloc[0] = 0.0
+        b = ((1 + r).cumprod() * 100).round(1)
+    else:
+        b = k * 0 + 100
+    return dict(d=[i.strftime("%Y-%m-%d") for i in c.index], k=[float(x) for x in k], b=[float(x) for x in b], bn=nm or "ingen branschgrupp")
+
+
+# Utfall för formationsutbrott i den egna kursdatan (alla .ST-bolag, backtest): andel där kursen gick åt signalens håll efter 20 dagar,
+# snittavkastning mot börsen (procentenheter) efter 40 dagar, andel där målet nåddes inom 40 dagar.
+FSTAT = {("huvud-skuldra", "sälj"): (52, -1.0, 33), ("dubbeltopp", "sälj"): (47, 0.3, 39), ("dubbelbotten", "köp"): (47, 0.1, 52),
+         ("omvänd huvud-skuldra", "köp"): (44, 1.0, 43), ("rektangel", "köp"): (48, 0.4, 50), ("rektangel", "sälj"): (53, -1.7, 44)}
+
+
+def teknik(p, oh, t, n=250):
+    """Formationer (utbrott genom nacklinje) inom grafens fönster, med nivå, mål och historiskt utfall. Beskrivning, ingen prognos."""
+    import formationer
+    c = p[t].dropna()
+    if len(c) < 80: return []
+    try: fm = formationer.hitta(c, max_dagar=n, ohlc=oh)
+    except Exception: return []
+    c0 = float(c.tail(n).iloc[0]); ut = []
+    for h in fm:
+        a = FSTAT.get((h["namn"], h["typ"]))
+        ut.append(dict(namn=h["namn"], typ=h["typ"], dag=h["dag"].strftime("%Y-%m-%d"), niva=round(float(h["niva"]), 1), mal=round(float(h["mal"]), 1),
+                       ni=round(h["niva"] / c0 * 100, 1), mi=round(h["mal"] / c0 * 100, 1), kurs=round(float(c.iloc[-1]), 1),
+                       nadd=bool((h["typ"] == "sälj" and c.loc[h["dag"]:].min() <= h["mal"]) or (h["typ"] == "köp" and c.loc[h["dag"]:].max() >= h["mal"])),
+                       stat=a))
+    return ut
 
 
 def insyn(d, t, sedan):
@@ -199,6 +236,12 @@ def kontrollera(x):
         for s in lst:
             if not isinstance(s, str) or not l0 <= len(s) <= l1: fel.append(f"{namn}-punkt har fel längd: {str(s)[:40]}")
             elif FORBJUDET.search(s): fel.append(f"{namn} innehåller råd om köp/sälj")
+    hv = x.get("handelser")
+    if not isinstance(hv, list) or not GRANS["handelser_n"][0] <= len(hv) <= GRANS["handelser_n"][1]: fel.append(f"handelser ska vara en lista med {GRANS['handelser_n'][0]}-{GRANS['handelser_n'][1]} poster {{d, t}} (datum och text till grafen)")
+    else:
+        for h in hv:
+            if not (isinstance(h, dict) and isinstance(h.get("d"), str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", h["d"]) and isinstance(h.get("t"), str) and GRANS["handelse_len"][0] <= len(h["t"]) <= GRANS["handelse_len"][1]): fel.append(f"ogiltig händelse: {str(h)[:50]}")
+            elif FORBJUDET.search(h["t"]): fel.append("handelser innehåller råd om köp/sälj")
     kl = x.get("kallor")
     if not isinstance(kl, list) or not 1 <= len(kl) <= 8: fel.append("kallor ska vara 1-8 par [titel, url]")
     else:
@@ -215,7 +258,7 @@ def spara(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     tx, st = jlas(TEXT), jlas(STATE); k = kort_t(t)
     tx[k] = dict(kort=x["kort"].strip(), bild=x["bild"].strip(), belagt=[s.strip() for s in x["belagt"]], tolkning=x["tolkning"].strip(),
-                 bevaka=[s.strip() for s in x["bevaka"]], kallor=x["kallor"], uppdaterad=str(IDAG.date()))
+                 bevaka=[s.strip() for s in x["bevaka"]], handelser=sorted(x["handelser"], key=lambda h: h["d"]), kallor=x["kallor"], uppdaterad=str(IDAG.date()))
     mfn = d["mfn"][d["mfn"].Ticker == t]; ik = insyn(d, t, IDAG - pd.Timedelta(days=270))
     st[k] = dict(datum=str(c.index[-1].date()), kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), mfn=sorted(set(mfn.Lank.tolist())),
                  insyn=sorted(set(ik.id.tolist())), vand=tillstand(d, t) if len(c) > 60 else None)

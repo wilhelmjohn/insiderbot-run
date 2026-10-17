@@ -123,8 +123,19 @@ def data() -> dict:
     sfp = MAPP / "bev_sammanfattning.json"
     if sfp.exists():
         sf = json.loads(sfp.read_text(encoding="utf-8"))
+    import bev_sf
+    si = pd.read_csv(MAPP / "sektor_info.csv").set_index("Ticker")
+    ohl = pd.read_csv(MAPP / "ohlc.csv", parse_dates=["Datum"]) if (MAPP / "ohlc.csv").exists() else None
     for x in rader:
         x["sf"] = sf.get(x["ticker"])
+        if x["sf"]:
+            tk = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"
+            x["sf"]["graf"] = bev_sf.graf(px, si, tk) if tk in px.columns else None
+            try:
+                oh = ohl[ohl.Ticker == tk].set_index("Datum") if ohl is not None else None
+                x["sf"]["fm"] = bev_sf.teknik(px, oh, tk) if tk in px.columns else []
+            except Exception:
+                x["sf"]["fm"] = []
     bilder = {}
     for _, r in d.iterrows():
         f = MAPP / "diagram" / str(r.get("Diagram", ""))
