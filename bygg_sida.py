@@ -139,6 +139,9 @@ def data() -> dict:
             x["block"] = None
         x["djup"] = djp.get(x["ticker"])
         x["sf"] = sf.get(x["ticker"])
+        if x["djup"] and not x["sf"]:
+            tk = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"
+            x["gx"] = dict(handelser=[], graf=bev_sf.graf(px, si, tk) if tk in px.columns else None)
         if x["sf"]:
             tk = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"
             x["sf"]["graf"] = bev_sf.graf(px, si, tk) if tk in px.columns else None
