@@ -3,7 +3,7 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
-  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, jamforelse, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -114,6 +114,19 @@ def teknik(p, oh, t, n=250):
     return ut
 
 
+BLOCK_PCT = 2.0   # ett enskilt köp över så här stor andel av börsvärdet är sannolikt blockaffär, nyemission eller ägarbyte
+
+
+def blockflagga(d, t, dagar=120):
+    """Största enskilda förvärv senaste 'dagar' som andel av börsvärdet. Flaggar misstänkt blockaffär/nyemission (kontrolleras alltid för hand)."""
+    ik = insyn(d, t, IDAG - pd.Timedelta(days=dagar)); ik = ik[ik.Karaktär.astype(str).str.contains("Förvärv", case=False)] if len(ik) else ik
+    bm = d["b"].Borsvarde_MSEK.get(t) if t in d["b"].index else np.nan
+    if not len(ik) or pd.isna(bm) or bm <= 0: return None
+    r = ik.sort_values("Belopp", ascending=False).iloc[0]; pct = r.Belopp / 1e6 / bm * 100
+    rest = ik.Belopp.sum() - r.Belopp
+    return dict(pct=round(float(pct), 1), mkr=round(float(r.Belopp) / 1e6, 1), datum=str(r.Publiceringsdatum.date()), rest_mkr=round(float(rest) / 1e6, 2), flagga=bool(pct >= BLOCK_PCT))
+
+
 def insyn(d, t, sedan):
     isin = d["tm"].ISIN.get(t)
     if isin != isin or isin is None: return d["ik"].iloc[0:0]
@@ -167,6 +180,9 @@ def dossier(d, t, kompakt=False):
     L.append("RAPPORTER (reaktion): " + ("; ".join(f"{r.Publicerat.date()} dag {f(r.Reaktion_dag,1)} %, 2 d {f(r.Reaktion_2d,1)} %, utfall {r.Utfall}" for r in rp.itertuples()) if len(rp) else "saknas i underlaget: kolla bolagets finanskalender och senaste rapport på webben"))
     L.append(f"RAPPORTDATA: senast {b.Rapport_senast if isinstance(b.Rapport_senast, str) else '–'}; nästa {b.Rapport_nasta_uppsk if isinstance(b.Rapport_nasta_uppsk, str) else '–'} ({b.Rapport_kalla if isinstance(b.Rapport_kalla, str) else 'okänd källa'})")
     ik = insyn(d, t, IDAG - pd.Timedelta(days=270))
+    bf = blockflagga(d, t)
+    if bf and bf["flagga"]:
+        L.append(f"MISSTÄNKT BLOCKAFFÄR/NYEMISSION: största enskilda köp {bf['mkr']} Mkr ({bf['datum']}) = {bf['pct']} % av börsvärdet; övriga köp i fönstret {bf['rest_mkr']} Mkr. KONTROLLERA på webben om det var marknadsköp, nyemission, blockaffär eller ägarbyte innan analysen, skriv det överst, sänk Insyn-poängen.")
     if len(ik):
         L.append("INSYN (270 d, publicerat):")
         for r in ik.head(10 if not kompakt else 6).itertuples():
@@ -285,6 +301,8 @@ def kontrollera_djup(x):
         v = dl.get(k)
         if not (isinstance(v, dict) and isinstance(v.get("p"), int) and 0 <= v["p"] <= 5 and isinstance(v.get("t"), str) and 30 <= len(v["t"]) <= 450): fel.append(f"del {k} ska vara {{p: 0-5, t: 30-450 tecken}}"); continue
         if FORBJUDET.search(v["t"]): fel.append(f"del {k} innehåller råd om köp/sälj")
+    jf = x.get("jamforelse")
+    if not isinstance(jf, str) or not 30 <= len(jf) <= 450: fel.append("jamforelse ska vara 30-450 tecken (bransch eller namngivna peers, och storleksgrupp; säg om data saknas)")
     ko = x.get("konsensus")
     if not isinstance(ko, str) or not 30 <= len(ko) <= 450: fel.append("konsensus ska vara 30-450 tecken (vad som hittats och från vem, eller att inget hittats)")
     sc = x.get("scenarier")
@@ -309,7 +327,7 @@ def spara_djup(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
     dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
-                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(),
+                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(),
                          scenarier=[dict(n=r["n"].strip(), f=r["f"].strip(), lag=r["lag"], hog=r["hog"], pl=round((r["lag"] / float(c.iloc[-1]) - 1) * 100), ph=round((r["hog"] / float(c.iloc[-1]) - 1) * 100)) for r in x["scenarier"]], datum=str(IDAG.date()),
                          kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
     jskriv(DJUP, dj)

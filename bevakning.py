@@ -493,6 +493,12 @@ def bevaka(kop_fil, tickermap, kurser_fil, dagar=30, min_personer=2, min_belopp=
     res = pd.DataFrame(rader)
     if res.empty:
         return res
+    # avnoterade bolag (t.ex. efter fusion): ingen kurs de senaste 7 dagarna -> inte längre ett fall
+    _sista = kurser.index.max()
+    _dod = [t for t in res["Ticker"] if t in kurser.columns and (kurser[t].last_valid_index() is None or kurser[t].last_valid_index() < _sista - pd.Timedelta(days=7))]
+    if _dod:
+        print("  Avnoterade, tas bort:", ", ".join(_dod))
+        res = res[~res["Ticker"].isin(_dod)]
     # Regelträffar (backtestad regel) tas med redan vid ett köp på minst REGEL_MIN_BELOPP;
     # övriga fall kräver min_personer och min_belopp som förut.
     res = res[((res["Antal_personer"] >= min_personer) & (res["Belopp"] >= min_belopp)) | (res["Regel"] == "ja")
