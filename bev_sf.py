@@ -3,7 +3,7 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
-  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, kallor) och sparar i bev_djup.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -285,6 +285,14 @@ def kontrollera_djup(x):
         v = dl.get(k)
         if not (isinstance(v, dict) and isinstance(v.get("p"), int) and 0 <= v["p"] <= 5 and isinstance(v.get("t"), str) and 30 <= len(v["t"]) <= 450): fel.append(f"del {k} ska vara {{p: 0-5, t: 30-450 tecken}}"); continue
         if FORBJUDET.search(v["t"]): fel.append(f"del {k} innehåller råd om köp/sälj")
+    ko = x.get("konsensus")
+    if not isinstance(ko, str) or not 30 <= len(ko) <= 450: fel.append("konsensus ska vara 30-450 tecken (vad som hittats och från vem, eller att inget hittats)")
+    sc = x.get("scenarier")
+    if not isinstance(sc, list) or not 3 <= len(sc) <= 5: fel.append("scenarier ska vara 3-5 poster {n, f, lag, hog}")
+    else:
+        for r in sc:
+            if not (isinstance(r, dict) and isinstance(r.get("n"), str) and isinstance(r.get("f"), str) and 20 <= len(r["f"]) <= 300 and all(isinstance(r.get(k), (int, float)) and r[k] > 0 for k in ("lag", "hog")) and r["lag"] <= r["hog"]): fel.append(f"ogiltigt scenario: {str(r)[:60]}")
+            elif FORBJUDET.search(r["f"]): fel.append("scenario innehåller råd om köp/sälj")
     kl = x.get("kallor")
     if not isinstance(kl, list) or not 2 <= len(kl) <= 10: fel.append("kallor ska vara 2-10 par [titel, url]")
     else:
@@ -301,7 +309,8 @@ def spara_djup(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
     dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
-                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], datum=str(IDAG.date()),
+                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(),
+                         scenarier=[dict(n=r["n"].strip(), f=r["f"].strip(), lag=r["lag"], hog=r["hog"], pl=round((r["lag"] / float(c.iloc[-1]) - 1) * 100), ph=round((r["hog"] / float(c.iloc[-1]) - 1) * 100)) for r in x["scenarier"]], datum=str(IDAG.date()),
                          kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
     jskriv(DJUP, dj)
     print(f"{kort_t(t)}: djupanalys sparad, poäng {dj[kort_t(t)]['poang']}/100 ({summa}/30)")
