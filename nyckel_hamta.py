@@ -5,7 +5,7 @@ tick = sorted(pd.read_csv("riktkurs_test_handelser.csv").Ticker.dropna().unique(
 FALT = {"is": ["Total Revenue", "Operating Income", "Net Income Common Stockholders", "Net Income", "Diluted EPS", "Basic EPS", "EBITDA", "Diluted Average Shares"],
         "bs": ["Stockholders Equity", "Common Stock Equity", "Total Debt", "Cash And Cash Equivalents", "Total Assets", "Ordinary Shares Number", "Share Issued"],
         "cf": ["Free Cash Flow", "Operating Cash Flow"]}
-ut, ok, fel = [], 0, []
+ut, ok, fel, val = [], 0, [], []
 for n, t in enumerate(tick, 1):
     try:
         k = yf.Ticker(t)
@@ -16,9 +16,12 @@ for n, t in enumerate(tick, 1):
                     for per, v in df.loc[f].items():
                         if pd.notna(v): ut.append((t, pd.Timestamp(per).strftime("%Y-%m-%d"), f, float(v)))
         ok += 1
+        try: val.append((t, k.info.get("financialCurrency")))
+        except Exception: val.append((t, None))
     except Exception as e:
         fel.append(t)
     if n % 25 == 0: print(n, len(tick), flush=True)
     time.sleep(0.4)
 pd.DataFrame(ut, columns=["Ticker", "Period", "Falt", "Varde"]).to_csv("nyckel_ar.csv", index=False)
+pd.DataFrame(val, columns=["Ticker", "Valuta"]).to_csv("nyckel_valuta.csv", index=False)
 print("OK", ok, "av", len(tick), "SAKNAS:", " ".join(fel)); print("KLAR")
