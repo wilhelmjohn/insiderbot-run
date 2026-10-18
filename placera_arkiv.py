@@ -66,7 +66,7 @@ P = [
  # F: "X sänker sin (långsiktiga) rekommendation för Y (, på tre års sikt,) till R från G. Riktkursen är (fortsatt) 140 kronor."
  re.compile(rf"^{FIRMA} (?:höjer|sänker) sin (?:långsiktiga )?rekommendation för (?P<bolag>.+?)(?:, på [^,]+,)? till (?P<rek>.+?) från (?P<grek>[^.]+)\. Riktkursen är (?:fortsatt )?{NYV}", re.I),
  # E: "X inleder/återupptar bevakning av/på Y med (rekommendationen) köp och riktkurs 460 kronor"
- re.compile(rf"^{FIRMA} (?:inleder|startar|återupptar) bevakning (?:av|på) (?P<bolag>.+?) med (?:rekommendation(?:en)? )?(?P<rek>\w+(?: \w+)?) och riktkurs(?:en)? (?:på )?{NYV}", re.I),
+ re.compile(rf"^{FIRMA} (?:inleder|startar|återupptar|har inlett|har återupptagit) bevakning (?:av|på) (?P<bolag>.+?) med (?:rekommendation(?:en)? )?(?P<rek>\w+(?: \w+)?) och riktkurs(?:en)? (?:på )?{NYV}", re.I),
 ]
 PG = [  # utan bolagsnamn i texten (bolaget står i tabellens första kolumn)
  re.compile(rf"^{FIRMA} {VERB} {RK} till {NYV}(?: ?\((?P<gammal>{NUM})\))?(?:,? (?:upprepar|höjer|sänker)\s*(?P<rek>[^.]*?))?\.?$", re.I),
@@ -86,7 +86,7 @@ def tolka(t, ctx=None):
             ny, gam = tal(d["ny"]), tal(d["gammal"]) if d.get("gammal") else None
             if ny is None: return None
             return dict(Firma=d["firma"].strip(), Bolag=rensa_bolag((d.get("bolag") or ctx).strip()), Ny=ny, Gammal=gam, Valuta=valuta(d.get("val")),
-                        Rek=(d.get("rek") or "").strip(), Typ=("start" if re.search(r"inleder|startar|återupptar", t, re.I) else "rk"))
+                        Rek=(d.get("rek") or "").strip(), Typ=("start" if re.search(r"inleder|inlett|startar|återupptar|återupptagit", t, re.I) else "rk"))
     return None
 
 def sidrader(htm):
@@ -111,12 +111,18 @@ def sidrader(htm):
             if r: rader.append(r)
             else: ej.append(f"[{bol}] {t}")
         tr.decompose()
-    for el in s.find_all(["p", "td", "li", "div"]):
+    cur = None
+    for el in s.find_all(["h3", "h2", "p", "td", "li", "div"]):
+        if el.name in ("h3", "h2"):
+            st = el.find("strong")
+            tx = re.sub(r"\s+", " ", el.get_text(" ", strip=True))
+            cur = tx if st is not None and 0 < len(tx) < 70 else None
+            continue
         if el.find(["p", "td", "li", "div"]): continue
         for t in el.get_text(" ", strip=False).split("\n"):
             t = re.sub(r"\s+", " ", t).strip()
             if "riktkurs" not in t.lower(): continue
-            r = tolka(t)
+            r = tolka(t, cur)
             if r: rader.append(r)
             elif len(t) < 400: ej.append(t)
     return dat, rader, ej
