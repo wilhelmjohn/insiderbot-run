@@ -4,7 +4,7 @@
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
   python bev_sf.py rk [--max N]       listar fall vars analytikerriktkurs saknas eller är äldre än 21 dagar (först), därefter övriga med uppsida
-  python bev_sf.py spara-rk T         läser JSON på stdin {rk: snittriktkurs i kr eller null, antal, kalla: https-länk, not: kort anmärkning} och sparar i bev_riktkurs.json
+  python bev_sf.py spara-rk T         läser JSON på stdin {rk: snittriktkurs i kr eller null, antal, kalla: https-länk, not: kort anmärkning, gammal: true om alla riktkurser är äldre än fyra månader} och sparar i bev_riktkurs.json
   python bev_sf.py spara-djup T             läser JSON på stdin (fraga, varfor, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
@@ -304,7 +304,7 @@ def spara_rk(d, k):
         if not (isinstance(kalla, str) and kalla.startswith("https://")): fel.append("kalla ska vara en https-länk när rk anges")
     if not isinstance(nt, str) or len(nt) > 250: fel.append("not ska vara text på högst 250 tecken (vilka analytiker och datum; vad som är osäkert)")
     if fel: sys.exit("Sparades inte:\n- " + "\n- ".join(fel))
-    r = jlas(RK); r[kort_t(t)] = dict(rk=rk, antal=n if rk is not None else 0, kalla=kalla if rk is not None else "", **{"not": nt.strip()}, kollad=str(IDAG.date()))
+    r = jlas(RK); r[kort_t(t)] = dict(rk=rk, antal=n if rk is not None else 0, kalla=kalla if rk is not None else "", **{"not": nt.strip()}, gammal=bool(x.get("gammal")) and rk is not None, kollad=str(IDAG.date()))
     jskriv(RK, r)
     print(f"{kort_t(t)}: " + (f"riktkurs {rk} kr ({n} analytiker), uppsida {round((rk / float(c) - 1) * 100)} %" if rk is not None and c is not None else "ingen riktkurs hittad") + " sparad")
 
