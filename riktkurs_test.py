@@ -47,8 +47,13 @@ for t, b in zip(nam.Ticker, nam.Bolag):
 def valj(c):
     c = [t for t in c if t in liq.index]
     return max(c, key=lambda t: liq[t]) if c else None
+def rensa_namn(n):
+    n = re.sub(r",.*$", "", str(n))
+    n = re.sub(r"\s+(i )?två steg.*$", "", n)
+    n = re.sub(r"\s+för den långsiktiga.*$", "", n)
+    return n.strip()
 def ticker(namn):
-    k = nn(namn)
+    k = nn(rensa_namn(namn))
     if k in extra: return extra[k]
     if k in full: return valj(full[k])
     tk = k.split()
@@ -123,10 +128,10 @@ u = E[E.uppsida.between(-60, 300)].copy()
 u["kvint"] = pd.qcut(u.uppsida, 5, labels=["1 lägst uppsida", "2", "3", "4", "5 högst uppsida"])
 L += tabell("C. Nivå: uppsida till nya riktkursen mot kursen dagen före", [(k, g) for k, g in u.groupby("kvint", observed=True)], ["x5", "x20", "x60"])
 E["storlek"] = pd.qcut(E.oms.rank(method="first"), 3, labels=["minst omsatta", "mellan", "mest omsatta"])
+E["ar"] = E.Datum.dt.year
 hh = E[E.pct > MIN_PCT]; ss = E[E.pct < -MIN_PCT]
 L += tabell("D1. Höjda riktkurser efter handelsvolym", [(k, g) for k, g in hh.groupby("storlek", observed=True)], kol)
 L += tabell("D2. Sänkta riktkurser efter handelsvolym", [(k, g) for k, g in ss.groupby("storlek", observed=True)], kol)
-E["ar"] = E.Datum.dt.year
 L += tabell("E1. Höjda per år", [(k, g) for k, g in hh.groupby("ar")], ["r0", "x20", "x60"])
 L += tabell("E2. Sänkta per år", [(k, g) for k, g in ss.groupby("ar")], ["r0", "x20", "x60"])
 # handelsbara delen: höjda minus sänkta, x20 per år
