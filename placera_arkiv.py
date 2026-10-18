@@ -125,7 +125,7 @@ def sidrader(htm):
 idx = hamta(BAS + "/sitemap.xml")
 manader = re.findall(r"https://www\.placera\.se/artiklar/(\d{4}-\d{2})-articles\.xml", idx.text) if idx else []
 f0, t0 = FRAN[:7], TILL[:7]
-SLUG = re.compile(r"aktierekar|aktierekommendationer|rekommendationer-i-oversikt|alla-nya-rekar|dagens-rekar", re.I)
+SLUG = re.compile(r"aktierekar|aktierekommendationer|rekommendationer-i-oversikt|alla-nya-rekar|dagens-rekar|riktkurs|kopstampel|kopstampl", re.I)
 sidor = {}
 for m in sorted(set(manader)):
     if not (f0 <= m <= t0): continue
@@ -148,6 +148,7 @@ print("sidor totalt:", len(sidor), flush=True)
 klara = set()
 if os.path.exists(SIDOR):
     klara = {r["Url"] for r in csv.DictReader(open(SIDOR, encoding="utf-8"))}
+os.makedirs("placera_debug", exist_ok=True)
 nytt_ut = not os.path.exists(UT); nytt_sid = not os.path.exists(SIDOR)
 fut = open(UT, "a", newline="", encoding="utf-8"); wut = csv.writer(fut)
 fsi = open(SIDOR, "a", newline="", encoding="utf-8"); wsi = csv.writer(fsi)
@@ -160,6 +161,9 @@ for url in sorted(sidor):
     r = hamta(url)
     if r is None: continue
     dat, rader, ej = sidrader(r.text)
+    if ej and len(ej) > len(rader) and len(os.listdir("placera_debug")) < 6:
+        i = r.text.find(ej[0].split("] ")[-1][:40]) if ej else -1
+        open(f"placera_debug/{dat or 'x'}.html", "w", encoding="utf-8").write(r.text[max(0, i - 6000):i + 3000] if i > 0 else r.text[100000:106000])
     if not dat:
         mm = re.search(r"(\d{4})-?(\d{2})-?(\d{2})", url)
         dat = f"{mm.group(1)}-{mm.group(2)}-{mm.group(3)}" if mm else ""

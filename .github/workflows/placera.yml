@@ -50,7 +50,7 @@ jobs:
         run: |
           git config user.name "insiderbot"
           git config user.email "insiderbot@users.noreply.github.com"
-          for f in riktkurs_nyhet.csv placera_sidor.csv placera_ejtolkat.txt placera_logg.txt; do git add "$f" || true; done
+          for f in riktkurs_nyhet.csv placera_sidor.csv placera_ejtolkat.txt placera_logg.txt placera_debug; do git add "$f" || true; done
           git diff --cached --quiet || git commit -m "placera rekar $(date -u +%F)"
           for i in 1 2 3; do
             git pull --rebase --autostash origin main && git push && break
