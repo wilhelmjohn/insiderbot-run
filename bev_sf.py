@@ -3,7 +3,7 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
-  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, varfor, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -295,6 +295,9 @@ def kontrollera_djup(x):
     elif FORBJUDET.search(sl): fel.append("slutsats innehåller råd om köp/sälj")
     fr = x.get("fraga")
     if not isinstance(fr, str) or not 20 <= len(fr) <= 250: fel.append("fraga ska vara 20-250 tecken (den konkreta frågan djupanalysen svarar på)")
+    vf = x.get("varfor")
+    if not isinstance(vf, str) or not 60 <= len(vf) <= 350: fel.append("varfor ska vara 60-350 tecken: 1-2 meningar överst om varför caset är intressant just nu (vad som sticker ut), utan råd")
+    elif FORBJUDET.search(vf): fel.append("varfor innehåller råd om köp/sälj")
     dl = x.get("delar")
     if not isinstance(dl, dict): fel.append("delar saknas"); dl = {}
     for k, namn in DELAR:
@@ -334,7 +337,7 @@ def spara_djup(d, k):
     if fel: sys.exit("Sparades inte:\n- " + "\n- ".join(fel))
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
-    dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
+    dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), varfor=x["varfor"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
                          summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(), handelser=sorted(x["handelser"], key=lambda h: h["d"]), timing=x["timing"].strip(),
                          scenarier=[dict(n=r["n"].strip(), f=r["f"].strip(), lag=r["lag"], hog=r["hog"], pl=round((r["lag"] / float(c.iloc[-1]) - 1) * 100), ph=round((r["hog"] / float(c.iloc[-1]) - 1) * 100)) for r in x["scenarier"]], datum=str(IDAG.date()),
                          kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
