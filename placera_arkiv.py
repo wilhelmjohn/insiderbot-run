@@ -127,6 +127,18 @@ def sidrader(htm):
             elif len(t) < 400: ej.append(t)
     return dat, rader, ej
 
+DBG = os.environ.get("DEBUG_URLS", "").split()
+if DBG:
+    os.makedirs("placera_debug", exist_ok=True)
+    for j, u in enumerate(DBG):
+        if not tillaten(u): continue
+        x = hamta(u)
+        if x is None: continue
+        t = x.text; a = t.find("<article", t.find("<h1"))
+        t = re.sub(r' (class|style|srcSet|sizes|data-[a-z-]+|role|tabindex|aria-[a-z]+)="[^"]*"', "", t[max(0, a):])
+        open(f"placera_debug/url{j}.html", "w", encoding="utf-8").write(t[:30000])
+    print("DEBUG KLAR"); sys.exit(0)
+
 # --- upptäck sidor via sitemap
 idx = hamta(BAS + "/sitemap.xml")
 manader = re.findall(r"https://www\.placera\.se/artiklar/(\d{4}-\d{2})-articles\.xml", idx.text) if idx else []

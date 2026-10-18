@@ -11,6 +11,9 @@ on:
       till:
         description: "Sista datum (tomt = idag)"
         default: ""
+      debug_urls:
+        description: "Felsökning: mellanslagsseparerade Placera-URL:er att spara utdrag av"
+        default: ""
 
 permissions:
   contents: read
@@ -42,6 +45,8 @@ jobs:
       - run: pip install requests beautifulsoup4 lxml
       - name: Läs sidor
         timeout-minutes: 320
+        env:
+          DEBUG_URLS: ${{ inputs.debug_urls }}
         run: |
           set -o pipefail
           python -u placera_arkiv.py "${{ inputs.fran }}" "${{ inputs.till }}" 2>&1 | tee placera_logg.txt
