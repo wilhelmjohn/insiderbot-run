@@ -26,6 +26,10 @@ def nn(s):
     s = re.sub(r"[^a-zåäöéüø0-9 ]", " ", s)
     return " ".join(t for t in s.split() if t not in STOPP)
 kur = pd.read_csv("kurser.csv", parse_dates=["Datum"])
+try:
+    kur = pd.concat([kur, pd.read_csv("kurser_extra.csv", parse_dates=["Datum"])]).drop_duplicates(["Datum", "Ticker"])
+except Exception:
+    pass
 kur = kur[kur.Datum >= "2020-06-01"]
 liq = (kur.assign(oms=kur.Stang * kur.Volym.fillna(0)).groupby("Ticker").oms.mean())
 nam = pd.read_csv("rapporter.csv", usecols=["Ticker", "Bolag"]).drop_duplicates()
