@@ -1,0 +1,53 @@
+name: hamta_webb
+# Hämtar webbsidor/PDF:er som Claude-sessionen inte når (blockerad utgående trafik).
+# Startas manuellt med en lista URL:er; resultatet (ren text) sparas i datarepots mapp hamtat/.
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "https-URL:er, en per rad"
+        required: true
+        type: string
+concurrency:
+  group: hamta_webb
+permissions:
+  contents: read
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - run: cp _kod/hamta_webb.py .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests pypdf
+      - name: Hämta
+        env:
+          URLS: ${{ inputs.urls }}
+        run: |
+          printf '%s\n' "$URLS" > hamta_urls.txt
+          python -u hamta_webb.py
+          rm -f hamta_urls.txt
+      - name: Spara
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add hamtat
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "hamtat: webbsidor $(date -u '+%F %H:%M')"
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs --autostash >/tmp/gitlog.txt 2>&1 && git push >>/tmp/gitlog.txt 2>&1; then exit 0; fi
+            cat /tmp/gitlog.txt; sleep 8
+          done
+          exit 1
