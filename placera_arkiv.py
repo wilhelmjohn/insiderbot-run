@@ -40,15 +40,16 @@ rp = urllib.robotparser.RobotFileParser(); rp.parse(rob.text.splitlines())
 def tillaten(u): return rp.can_fetch(UA, u)
 
 NUM = r"\d[\d\s ]*(?:[.,]\d+)?"
-VAL = r"(danska kronor|norska kronor|amerikanska dollar|dollar|brittiska pund|pund|schweiziska franc|euro|kronor|kr)"
+VAL = r"(danska kronor|norska kronor|danska kr|norska kr|svenska kronor|amerikanska dollar|dollar|brittiska pund|pund|schweiziska franc|schweiziska kr|euro|kronor|kr)"
 def tal(s):
     s = re.sub(r"[\s ]", "", s).replace(",", ".")
     try: return float(s)
     except: return None
 def valuta(s):
     s = (s or "kronor").lower()
-    return {"danska kronor": "DKK", "norska kronor": "NOK", "euro": "EUR", "dollar": "USD", "amerikanska dollar": "USD",
-            "pund": "GBP", "brittiska pund": "GBP", "schweiziska franc": "CHF"}.get(s, "SEK")
+    return {"danska kronor": "DKK", "norska kronor": "NOK", "danska kr": "DKK", "norska kr": "NOK", "euro": "EUR", "dollar": "USD",
+            "amerikanska dollar": "USD", "pund": "GBP", "brittiska pund": "GBP", "schweiziska franc": "CHF",
+            "schweiziska kr": "CHF"}.get(s, "SEK")
 FIRMA = r"(?P<firma>[^.]+?)"
 VERB = r"(?:har )?(?:höjer|sänker|höjt|sänkt|upprepar|bibehåller|justerar)"
 RK = rf"(?:sin )?riktkurs(?:en)?"
@@ -67,19 +68,24 @@ P = [
  # E: "X inleder/återupptar bevakning av/på Y med (rekommendationen) köp och riktkurs 460 kronor"
  re.compile(rf"^{FIRMA} (?:inleder|startar|återupptar) bevakning (?:av|på) (?P<bolag>.+?) med (?:rekommendation(?:en)? )?(?P<rek>\w+(?: \w+)?) och riktkurs(?:en)? (?:på )?{NYV}", re.I),
 ]
+PG = [  # utan bolagsnamn i texten (bolaget står i tabellens första kolumn)
+ re.compile(rf"^{FIRMA} {VERB} {RK} till {NYV}(?: ?\((?P<gammal>{NUM})\))?(?:,? (?:upprepar|höjer|sänker)\s*(?P<rek>[^.]*?))?\.?$", re.I),
+ re.compile(rf"^{FIRMA} (?:höjer|sänker|upprepar|inleder bevakning)(?: till| med)? (?P<rek>[^,(]+?)(?: \((?P<grek>[^)]+)\))?,? (?:och )?(?:ny |upprepar )?riktkurs(?:en)? (?:på )?{NYV}(?: ?\((?P<gammal>{NUM})\))?\.?$", re.I),
+ re.compile(rf"^{FIRMA} (?:höjer|sänker) sin (?:långsiktiga )?rekommendation till (?P<rek>.+?) från (?P<grek>[^.]+)\. Riktkursen (?:höjs|sänks|är)(?: fortsatt)?(?: från (?P<gammal>{NUM}) ?(?:{VAL})? till)? {NYV}", re.I),
+]
 def rensa_bolag(b):
     t = b.split()
     while len(t) > 1 and t[0].islower(): t = t[1:]
     return " ".join(t)
-def tolka(t):
+def tolka(t, ctx=None):
     t = re.sub(r"\s+", " ", t.replace(" ", " ")).strip()
-    for i, p in enumerate(P):
+    for i, p in enumerate(P + (PG if ctx else [])):
         m = p.match(t)
         if m:
             d = m.groupdict()
             ny, gam = tal(d["ny"]), tal(d["gammal"]) if d.get("gammal") else None
             if ny is None: return None
-            return dict(Firma=d["firma"].strip(), Bolag=rensa_bolag(d["bolag"].strip()), Ny=ny, Gammal=gam, Valuta=valuta(d.get("val")),
+            return dict(Firma=d["firma"].strip(), Bolag=rensa_bolag((d.get("bolag") or ctx).strip()), Ny=ny, Gammal=gam, Valuta=valuta(d.get("val")),
                         Rek=(d.get("rek") or "").strip(), Typ=("start" if re.search(r"inleder|startar|återupptar", t, re.I) else "rk"))
     return None
 
@@ -94,6 +100,17 @@ def sidrader(htm):
         except Exception: pass
     rader, ej = [], []
     for br in s.find_all("br"): br.replace_with("\n")
+    for tr in s.find_all("tr"):
+        c = tr.find_all(["td", "th"])
+        if len(c) != 2: continue
+        bol = re.sub(r"\s+", " ", c[0].get_text(" ", strip=True)).strip()
+        for t in c[1].get_text(" ", strip=False).split("\n"):
+            t = re.sub(r"\s+", " ", t).strip()
+            if "riktkurs" not in t.lower() or not bol or bol == "Aktie": continue
+            r = tolka(t, bol)
+            if r: rader.append(r)
+            else: ej.append(f"[{bol}] {t}")
+        tr.decompose()
     for el in s.find_all(["p", "td", "li", "div"]):
         if el.find(["p", "td", "li", "div"]): continue
         for t in el.get_text(" ", strip=False).split("\n"):
@@ -120,6 +137,8 @@ for m in sorted(set(manader)):
     traff = [l for l in locs if SLUG.search(l)]
     print(f"sitemap {m}: {len(locs)} artiklar, {len(traff)} rekar-sidor", flush=True)
     for l in traff: sidor[l] = m
+    rest = [l.rsplit("/", 1)[-1] for l in locs if not SLUG.search(l) and re.search(r"riktkurs|kopstampel|rekommend|rekar|rekyl", l, re.I)]
+    if rest: print(f"   ej matchade men liknande ({len(rest)}):", ", ".join(rest[:25]), flush=True)
 nyhet = hamta(BAS + "/news-sitemap.xml")
 if nyhet:
     for l in re.findall(r"<loc>([^<]+)</loc>", nyhet.text):
