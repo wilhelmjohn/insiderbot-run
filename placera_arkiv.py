@@ -185,7 +185,7 @@ for url in sorted(sidor):
     if url in klara or not tillaten(url): continue
     r = hamta(url)
     if r is None: continue
-    if "affarsvarlden" in r.text.lower():
+    if re.search(r"mailto:[^\"]*@affarsvarlden", r.text, re.I):   # Affärsvärldens egna artiklar (byline med deras e-post) hoppas över
         wsi.writerow([re.sub(r".*?(\d{4})-?(\d{2})-?(\d{2}).*", r"\1-\2-\3", url), url, -1]); continue
     dat, rader, ej = sidrader(r.text)
     if ej and len(ej) > len(rader) and len(os.listdir("placera_debug")) < 6:
