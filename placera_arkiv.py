@@ -79,6 +79,7 @@ def rensa_bolag(b):
     return " ".join(t)
 def tolka(t, ctx=None):
     t = re.sub(r"\s+", " ", t.replace(" ", " ")).strip()
+    t = re.sub(r"\s*[-–]\s*BN\.?$", "", t)
     for i, p in enumerate(P + (PG if ctx else [])):
         m = p.match(t)
         if m:
@@ -119,10 +120,16 @@ def sidrader(htm):
             cur = tx if st is not None and 0 < len(tx) < 70 else None
             continue
         if el.find(["p", "td", "li", "div"]): continue
+        lokal = cur
+        if el.name == "p" and "\n" in el.get_text():
+            f0 = next((c for c in el.contents if str(c).strip()), None)
+            if getattr(f0, "name", None) == "strong":
+                lokal = re.sub(r"\s+", " ", f0.get_text(" ", strip=True)) or cur
+                f0.extract()
         for t in el.get_text(" ", strip=False).split("\n"):
             t = re.sub(r"\s+", " ", t).strip()
             if "riktkurs" not in t.lower(): continue
-            r = tolka(t, cur)
+            r = tolka(t, lokal)
             if r: rader.append(r)
             elif len(t) < 400: ej.append(t)
     return dat, rader, ej
@@ -178,6 +185,8 @@ for url in sorted(sidor):
     if url in klara or not tillaten(url): continue
     r = hamta(url)
     if r is None: continue
+    if "affarsvarlden" in r.text.lower():
+        wsi.writerow([re.sub(r".*?(\d{4})-?(\d{2})-?(\d{2}).*", r"\1-\2-\3", url), url, -1]); continue
     dat, rader, ej = sidrader(r.text)
     if ej and len(ej) > len(rader) and len(os.listdir("placera_debug")) < 6:
         i = r.text.find(ej[0].split("] ")[-1][:40]) if ej else -1
