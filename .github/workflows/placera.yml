@@ -1,0 +1,59 @@
+name: Placera rekar (historiska riktkursändringar)
+
+# Läser Placeras dagliga rekommendationslistor (via deras sitemap; respekterar robots.txt, 1 anrop/sekund)
+# och sparar tolkade riktkursändringar i riktkurs_nyhet.csv. Kan köras om: redan lästa sidor hoppas över.
+on:
+  workflow_dispatch:
+    inputs:
+      fran:
+        description: "Första datum (ÅÅÅÅ-MM-DD)"
+        default: "2021-01-01"
+      till:
+        description: "Sista datum (tomt = idag)"
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: placera
+  cancel-in-progress: false
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - run: cp _kod/*.py .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests beautifulsoup4 lxml
+      - name: Läs sidor
+        timeout-minutes: 320
+        run: |
+          set -o pipefail
+          python -u placera_arkiv.py "${{ inputs.fran }}" "${{ inputs.till }}" 2>&1 | tee placera_logg.txt
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in riktkurs_nyhet.csv placera_sidor.csv placera_ejtolkat.txt placera_logg.txt; do git add "$f" || true; done
+          git diff --cached --quiet || git commit -m "placera rekar $(date -u +%F)"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main && git push && break
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 20 + 5))
+          done
