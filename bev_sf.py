@@ -5,7 +5,7 @@
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
   python bev_sf.py rk [--max N]       listar fall vars analytikerriktkurs saknas eller är äldre än 21 dagar (först), därefter övriga med uppsida
   python bev_sf.py spara-rk T         läser JSON på stdin {rk: snittriktkurs i kr eller null, antal, kalla: https-länk, not: kort anmärkning, gammal: true om alla riktkurser är äldre än fyra månader} och sparar i bev_riktkurs.json
-  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, varfor, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
+  python bev_sf.py spara-djup T             läser JSON på stdin (fraga, varfor, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, inprisat, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
 Texterna ligger i bev_sammanfattning.json (visas i den utfällda raden på sidan). Vad som redan beaktats (kurs, MFN-länkar, insynsrader,
@@ -347,6 +347,9 @@ def kontrollera_djup(x):
     tm = x.get("timing")
     if not isinstance(tm, str) or not 60 <= len(tm) <= 600: fel.append("timing ska vara 60-600 tecken (kommentar om tidpunkten: kommande datum, nivåer, vad som gör tidpunkten bättre eller sämre; inget råd)")
     elif FORBJUDET.search(tm): fel.append("timing innehåller råd om köp/sälj")
+    ip = x.get("inprisat")
+    if not isinstance(ip, str) or not 80 <= len(ip) <= 500: fel.append("inprisat ska vara 80-500 tecken: min läsning av om förväntningarna och kursrörelsen redan verkar inprisade inför nästa rapport eller händelse. Väg analytikernas förväntningar (riktkursernas riktning), kursrörelsen sedan insynsköpet och senaste månaden, tidigare rapportreaktioner och scenariernas spann. Skriv 'verkar mest inprisat', 'verkar delvis inprisat' eller 'verkar lite inprisat' med skälen, och säg att det är en bedömning som inte går att veta. Inget råd")
+    elif FORBJUDET.search(ip): fel.append("inprisat innehåller råd om köp/sälj")
     jf = x.get("jamforelse")
     if not isinstance(jf, str) or not 30 <= len(jf) <= 450: fel.append("jamforelse ska vara 30-450 tecken (bransch eller namngivna peers, och storleksgrupp; säg om data saknas)")
     ko = x.get("konsensus")
@@ -373,7 +376,7 @@ def spara_djup(d, k):
     c = d["p"][t].dropna() if t in d["p"].columns else pd.Series([np.nan], index=[IDAG])
     dj = jlas(DJUP); summa = sum(x["delar"][a]["p"] for a, _ in DELAR)
     dj[kort_t(t)] = dict(fraga=x["fraga"].strip(), varfor=x["varfor"].strip(), slutsats=x["slutsats"].strip(), delar={a: dict(p=x["delar"][a]["p"], t=x["delar"][a]["t"].strip()) for a, _ in DELAR},
-                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(), handelser=sorted(x["handelser"], key=lambda h: h["d"]), timing=x["timing"].strip(),
+                         summa=summa, poang=round(summa / 30 * 100), kallor=x["kallor"], konsensus=x["konsensus"].strip(), jamforelse=x["jamforelse"].strip(), handelser=sorted(x["handelser"], key=lambda h: h["d"]), timing=x["timing"].strip(), inprisat=x["inprisat"].strip(),
                          scenarier=[dict(n=r["n"].strip(), f=r["f"].strip(), lag=r["lag"], hog=r["hog"], pl=round((r["lag"] / float(c.iloc[-1]) - 1) * 100), ph=round((r["hog"] / float(c.iloc[-1]) - 1) * 100)) for r in x["scenarier"]], datum=str(IDAG.date()),
                          kurs=None if pd.isna(c.iloc[-1]) else round(float(c.iloc[-1]), 3), bedomning="Min bedömning efter genomläst material. Går inte att backtesta; utfallet följs upp framåt.")
     jskriv(DJUP, dj)
