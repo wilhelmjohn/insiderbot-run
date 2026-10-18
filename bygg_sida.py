@@ -127,6 +127,7 @@ def data() -> dict:
     si = pd.read_csv(MAPP / "sektor_info.csv").set_index("Ticker")
     ohl = pd.read_csv(MAPP / "ohlc.csv", parse_dates=["Datum"]) if (MAPP / "ohlc.csv").exists() else None
     djp = json.loads((MAPP / "bev_djup.json").read_text(encoding="utf-8")) if (MAPP / "bev_djup.json").exists() else {}
+    rkd = json.loads((MAPP / "bev_riktkurs.json").read_text(encoding="utf-8")) if (MAPP / "bev_riktkurs.json").exists() else {}
     try:
         dd = bev_sf.las()
     except Exception:
@@ -138,6 +139,10 @@ def data() -> dict:
         except Exception:
             x["block"] = None
         x["djup"] = djp.get(x["ticker"])
+        e = rkd.get(x["ticker"]); tkr = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"
+        kn = float(px[tkr].dropna().iloc[-1]) if tkr in px.columns and px[tkr].notna().any() else None
+        x["rk"] = None if not e else dict(rk=e["rk"], antal=e["antal"], kalla=e["kalla"], nt=e["not"], kollad=e["kollad"], upp=None if (e["rk"] is None or not kn) else round((e["rk"] / kn - 1) * 100, 1))
+        x["rkupp"] = x["rk"]["upp"] if x["rk"] else None
         x["sf"] = sf.get(x["ticker"])
         if x["djup"] and not x["sf"]:
             tk = x["ticker"] if "." in x["ticker"] else x["ticker"] + ".ST"

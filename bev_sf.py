@@ -3,6 +3,8 @@
   python bev_sf.py behov [--max N]          vilka bolag som behöver ny text och varför
   python bev_sf.py dossier [--kompakt] T..  underlag per bolag (T = ticker utan .ST, t.ex. PLEJD). "alla" ger samtliga fall i bevakning.csv
   python bev_sf.py spara T                  läser JSON på stdin (kort, bild, belagt, tolkning, bevaka, handelser, kallor) och sparar i bev_sammanfattning.json
+  python bev_sf.py rk [--max N]       listar fall vars analytikerriktkurs saknas eller är äldre än 21 dagar (först), därefter övriga med uppsida
+  python bev_sf.py spara-rk T         läser JSON på stdin {rk: snittriktkurs i kr eller null, antal, kalla: https-länk, not: kort anmärkning} och sparar i bev_riktkurs.json
   python bev_sf.py spara-djup T             läser JSON på stdin (fraga, varfor, slutsats, delar{affaren,kassaflode,varderng,katalysatorer,insyn,risk: {p 0-5, t}}, handelser[{d,t}], jamforelse, timing, konsensus, scenarier[{n,f,lag,hog}], kallor) och sparar i bev_djup.json
   python bev_sf.py kontroll                 validerar att alla fall har text och att fälten följer reglerna
 
@@ -17,6 +19,7 @@ HER = Path(__file__).resolve().parent
 TEXT = HER / "bev_sammanfattning.json"
 STATE = HER / "bev_sf_state.json"
 DJUP = HER / "bev_djup.json"
+RK = HER / "bev_riktkurs.json"
 DELAR = [("affaren", "Affären"), ("kassaflode", "Kassaflöde och balansräkning"), ("varderng", "Värdering"), ("katalysatorer", "Katalysatorer"), ("insyn", "Insyn och ägare"), ("risk", "Risk")]
 IDAG = pd.Timestamp.now(tz="Europe/Stockholm").tz_localize(None).normalize()
 GRANS = dict(handelser_n=(3, 10), handelse_len=(8, 150), kort=(60, 300), bild=(120, 900), tolkning=(40, 1000), belagt_n=(2, 7), belagt_len=(15, 330), bevaka_n=(1, 3), bevaka_len=(15, 200), villkor_n=(2, 4), villkor_len=(15, 260))
@@ -288,6 +291,38 @@ def spara(d, k):
     print(f"{k}: sparad ({len(tx[k]['kort'])}+{len(tx[k]['bild'])} tecken)")
 
 
+def spara_rk(d, k):
+    t = namn_till_tick(k); x = json.loads(sys.stdin.read())
+    if t not in d["b"].index: sys.exit(f"{t} finns inte i bevakning.csv")
+    fel = []
+    rk, n, kalla, nt = x.get("rk"), x.get("antal"), x.get("kalla", ""), x.get("not", "")
+    c = d["p"][t].dropna().iloc[-1] if t in d["p"].columns and d["p"][t].notna().any() else None
+    if rk is not None:
+        if not isinstance(rk, (int, float)) or rk <= 0: fel.append("rk ska vara ett positivt tal (snittriktkurs i kr) eller null")
+        elif c is not None and not 0.2 <= rk / float(c) <= 10: fel.append(f"rk {rk} ligger orimligt långt från kursen {c:.2f}: kontrollera aktieslag och valuta")
+        if not isinstance(n, int) or n < 1: fel.append("antal ska vara heltal >= 1 när rk anges")
+        if not (isinstance(kalla, str) and kalla.startswith("https://")): fel.append("kalla ska vara en https-länk när rk anges")
+    if not isinstance(nt, str) or len(nt) > 250: fel.append("not ska vara text på högst 250 tecken (vilka analytiker och datum; vad som är osäkert)")
+    if fel: sys.exit("Sparades inte:\n- " + "\n- ".join(fel))
+    r = jlas(RK); r[kort_t(t)] = dict(rk=rk, antal=n if rk is not None else 0, kalla=kalla if rk is not None else "", **{"not": nt.strip()}, kollad=str(IDAG.date()))
+    jskriv(RK, r)
+    print(f"{kort_t(t)}: " + (f"riktkurs {rk} kr ({n} analytiker), uppsida {round((rk / float(c) - 1) * 100)} %" if rk is not None and c is not None else "ingen riktkurs hittad") + " sparad")
+
+
+def lista_rk(d, maxn=99):
+    r = jlas(RK); ut, ok = [], []
+    for t in d["b"].index:
+        k = kort_t(t); c = d["p"][t].dropna().iloc[-1] if t in d["p"].columns and d["p"][t].notna().any() else None
+        e = r.get(k); alder = (IDAG - pd.Timestamp(e["kollad"])).days if e else None
+        if e is None or alder > 21: ut.append((k, c, e, alder, t))
+        else: ok.append((k, c, e, alder, t))
+    for k, c, e, a, _t in sorted(ut, key=lambda z: -float(d["b"].loc[z[4]].get("Belopp", 0) or 0))[:maxn]:
+        print(f"KOLLA {k}: kurs {c:.2f}; " + ("aldrig kollad" if e is None else f"kollad för {a} dagar sedan"))
+    for k, c, e, a, _t in ok:
+        print(f"OK    {k}: kurs {c:.2f}; " + (f"riktkurs {e['rk']} ({e['antal']} analytiker), uppsida {round((e['rk'] / float(c) - 1) * 100)} %" if e["rk"] is not None else "ingen riktkurs hittad") + f"; kollad {e['kollad']}")
+    print(f"{len(ut)} fall behöver kollas, {len(ok)} är aktuella")
+
+
 def kontrollera_djup(x):
     fel = []
     sl = x.get("slutsats")
@@ -369,6 +404,10 @@ def main():
         for t in ts: print(dossier(d, t, komp)); print()
     elif cmd == "spara":
         spara(d, rest[0])
+    elif cmd == "spara-rk":
+        spara_rk(d, rest[0])
+    elif cmd == "rk":
+        lista_rk(d, int(rest[rest.index("--max") + 1]) if "--max" in rest else 99)
     elif cmd == "spara-djup":
         spara_djup(d, rest[0])
     else:
