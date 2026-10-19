@@ -1,0 +1,50 @@
+name: Divergens nordiska kurser
+
+# Hämtar dagskurser för norska och danska storbolag (plus NOKSEK, DKKSEK och index) till Divergensscreen.
+# Körs varje vardag efter stängning i Oslo och Köpenhamn, och kan startas manuellt.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "40 15 * * 1-5"   # ca 17:40 svensk sommartid (16:40 vintertid)
+
+concurrency:
+  group: divergens_kurser
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - run: cp _kod/divergens_kurser.py .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pandas yfinance
+      - run: python -u divergens_kurser.py 2>&1 | tee divergens_kurser_logg.txt
+      - name: Spara
+        if: always()
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in divergens_nordic.csv divergens_nordic_info.csv divergens_kurser_logg.txt; do git add "$f" || true; done
+          git diff --cached --quiet || git commit -m "divergens: nordiska kurser $(date -u +%F)"
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1

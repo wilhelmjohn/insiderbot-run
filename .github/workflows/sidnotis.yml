@@ -8,6 +8,18 @@ on:
         description: "Meddelandetext"
         required: false
         default: "Kvällsuppdateringen är klar."
+      titel:
+        description: "Rubrik (tomt = Bevakningssidan uppdaterad)"
+        required: false
+        default: ""
+      lank:
+        description: "Länk för knappen och tryck på notisen (tomt = bevakningssidan)"
+        required: false
+        default: ""
+      prio:
+        description: "Prioritet 1-5 (tomt = 2)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -37,4 +49,12 @@ jobs:
       - env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           TEXT: ${{ inputs.text }}
-        run: python notis.py --sida "$TEXT"
+          TITEL: ${{ inputs.titel }}
+          LANK: ${{ inputs.lank }}
+          PRIO: ${{ inputs.prio }}
+        run: |
+          args=(--sida "$TEXT")
+          [ -n "$TITEL" ] && args+=(--titel "$TITEL")
+          [ -n "$LANK" ] && args+=(--lank "$LANK")
+          [ -n "$PRIO" ] && args+=(--prio "$PRIO")
+          python notis.py "${args[@]}"

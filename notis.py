@@ -311,6 +311,10 @@ def main():
     ap.add_argument("--endast-fall", action="store_true")
     ap.add_argument("--morgon", action="store_true", help="skicka morgonsammanfattningen")
     ap.add_argument("--sida", default=None, help="skicka kort notis att bevakningssidan är uppdaterad (text)")
+    ap.add_argument("--titel", default=None, help="rubrik för --sida (standard: Bevakningssidan uppdaterad)")
+    ap.add_argument("--lank", default=None, help="länk för knappen och tryck på notisen vid --sida (standard: bevakningssidan)")
+    ap.add_argument("--knapp", default="Öppna screenen", help="knapptext när --lank anges")
+    ap.add_argument("--prio", type=int, default=None, help="prioritet 1-5 för --sida")
     a = ap.parse_args()
     topic = os.environ.get("NTFY_TOPIC", "").strip() or None
     server = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
@@ -329,8 +333,12 @@ def main():
     if a.sida is not None:
         if not topic:
             raise SystemExit("NTFY_TOPIC saknas.")
-        skicka([{"title": "Bevakningssidan uppdaterad", "message": a.sida or "Kvällsuppdateringen är klar.",
-                 "priority": 2, "tags": ["bar_chart", "insiderbot"]}], topic, server)
+        m = {"title": a.titel or "Bevakningssidan uppdaterad", "message": a.sida or "Kvällsuppdateringen är klar.",
+             "priority": a.prio or 2, "tags": ["bar_chart", "insiderbot"]}
+        if a.lank:
+            m["actions"] = [{"action": "view", "label": a.knapp, "url": a.lank}]
+            m["click"] = a.lank
+        skicka([m], topic, server)
         print("Sidnotis skickad.")
         return
     if a.morgon:
