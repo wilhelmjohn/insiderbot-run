@@ -313,9 +313,13 @@ for t in univ:
               lows=[int(i - w0) for i in pair if i >= w0] if pair else [],
               ins=[dict(d=a["d"], typ=a["typ"]) for a in aff if a["d"] >= dates[w0].strftime("%Y-%m-%d")],
               rap=[x.strftime("%Y-%m-%d") for x in rk[(rk.Ticker == t) & (rk.Datum >= dates[w0])].Datum])
-    lowinfo = None
+    lowinfo, vb = None, None
     if pair:
         p, q = pair
+        with np.errstate(all="ignore"):
+            v1, v2 = np.nanmean(v[p - 1:p + 2]), np.nanmean(v[q - 1:q + 2])
+            vv = np.nanmean(v[q + 1:]) / np.nanmean(v[max(0, q - 20):q]) if q < len(v) - 1 else np.nan
+        vb = dict(botten=float(v2 / v1) if v1 > 0 and np.isfinite(v2) else None, vand=float(vv) if np.isfinite(vv) else None)
         lowinfo = dict(d1=dates[p].strftime("%Y-%m-%d"), c1=float(c[p]), r1=float(r[p]), d2=dates[q].strftime("%Y-%m-%d"), c2=float(c[q]), r2=float(r[q]))
     flags = []
     if sdd is not None and sdd <= -0.15: flags.append(("Sektorfall", "pos"))
@@ -330,6 +334,10 @@ for t in univ:
         f2 = lambda x: f"{x:.2f}".replace(".", ",")
         mot.append(f"Kursen gjorde lägre botten ({f2(lowinfo['c2'])} mot {f2(lowinfo['c1'])}) men RSI(9) högre ({lowinfo['r2']:.0f} mot {lowinfo['r1']:.0f}).")
     mot.append(f"Stochastic: {stoch_text(K, D).lower()}. MACD: {macd_text(h).lower()}.")
+    if vb and vb["botten"] is not None:
+        x = vb["botten"]
+        mot.append(f"Volymen vid andra bottnen var {100*x:.0f} % av den vid första" + (" (säljtrycket avtar)" if x < 0.8 else " (mer säljtryck)" if x > 1.2 else "")
+                   + (f", och efter bottnen {100*vb['vand']:.0f} % av snittet" if vb["vand"] is not None else "") + ". Volymen har inte gett någon fördel i testet, så se den som kontext.")
     if sdd is not None: mot.append("Hela sektorn har fallit (median " + f"{100*sdd:.0f} %)." if sdd <= -0.15 else f"Sektorn har inte fallit lika mycket (median {100*sdd:.0f} %), så fallet är mer bolagsspecifikt.")
     if note: mot.append(note + ".")
     land = LAND(t)
@@ -337,7 +345,7 @@ for t in univ:
     rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=(MARKNAD[land]["dd"] or 0) <= -0.10, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
                      toppdag=dates[top_i].strftime("%Y-%m-%d"), rsi=float(r[-1]), K=float(K[-1]), D=float(D[-1]),
                      stoch=stoch_text(K, D), macd=macd_text(h), vol=vol, sektor_dd=sdd, ins=ins, blank=blank, rapport=rapport,
-                     nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
+                     nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, vb=vb, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
                      mot=" ".join(mot), not_=note, live=t in LIVE, ch=ch))
 
 ORD = {"Köpläge": 0, "Närmar sig": 1, "Bevaka": 2, "Undvik": 3, "Utgår": 4}

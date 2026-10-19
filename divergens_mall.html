@@ -118,6 +118,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
       <dt>Stochastic</dt><dd>Var kursen står i 14-dagarsspannet, 0–100. %K under 25 är översålt. När %K korsar upp över %D har den vänt.</dd>
       <dt>R och 2R</dt><dd>R är avståndet från köpkurs till stopp. 2R är ett mål dubbelt så långt upp. Antal aktier räknas så att stoppen kostar högst 1 000 kr.</dd>
       <dt>Norge och Danmark</dt><dd>Samma regler som för Stockholm, men de är bara backtestade på svenska aktier. Insyn, blankning och pressmeddelanden finns bara för svenska bolag. Kurser i NOK och DKK, antal aktier räknat i kronor.</dd>
+      <dt>Volym</dt><dd>Volymen vid andra bottnen jämfört med den första, och volymen efter bottnen jämfört med 20-dagarssnittet. Lägre volym vid andra bottnen brukar tolkas som att säljtrycket avtar, men i testet 2016–2026 gav varken den eller volymen vid vändningen någon stabil fördel. Visas som kontext.</dd>
       <dt>1-årstopp</dt><dd>Högsta stängningskursen de senaste 250 handelsdagarna.</dd>
     </dl>
   </details>
@@ -179,6 +180,7 @@ function fill(det,r){
  const g=[metric("RSI vid bottnar",L?`<span class="num">${nf(L.r1,0)} → ${nf(L.r2,0)}</span>`:"–"),
   metric("Kurs vid bottnar",L?`<span class="num">${nf(L.c1)} → ${nf(L.c2)}</span><span class="k">${dd(L.d1)} → ${dd(L.d2)}</span>`:"–"),
   metric("Volym 10 d mot snitt",`<span class="num">${pc(r.vol)}</span>`),
+  metric("Volym botten 2 mot 1",r.vb&&r.vb.botten!=null?`<span class="num">${nf(100*r.vb.botten,0)} %</span><span class="k">${r.vb.vand!=null?"efter botten "+nf(100*r.vb.vand,0)+" % av snitt":""}</span>`:"–"),
   metric("Sektor från topp",`<span class="num">${pc(r.sektor_dd)}</span><span class="k">${esc(r.sektor||"")}</span>`),
   metric("1-årstopp",`<span class="num">${nf(r.topp)}</span><span class="k">${dd(r.toppdag)}</span>`),
   metric("Blankning",r.land!=="SE"?"Ej tillgänglig":r.blank?`<span class="num">${nf(r.blank.niva,2)} %</span><span class="k">${pc(r.blank.f20/100,2).replace(" %"," p.e.")} 20 d</span>`:"Ingen rapporterad"),
