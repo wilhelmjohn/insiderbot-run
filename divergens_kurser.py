@@ -11,7 +11,7 @@ import yfinance as yf
 NORGE = """EQNR DNB NHY MOWI TEL ORK YAR AKRBP SALM KOG STB GJF SUBC TOM NOD FRO AKER VAR NAS AUTO BAKKA LSG SCATC TGS HAFNI""".split()
 DANMARK = """NOVO-B DSV MAERSK-B NSIS-B VWS ORSTED CARL-B DANSKE COLO-B GMAB PNDORA TRYG DEMANT GN ROCK-B ISS JYSK NKT RBREW NETC AMBU-B BAVA FLS ZEAL SYDB""".split()
 TICKERS = [t + ".OL" for t in NORGE] + [t + ".CO" for t in DANMARK]
-EXTRA = ["NOKSEK=X", "DKKSEK=X", "^OSEBX", "OBX.OL", "^OMXC25"]
+EXTRA = ["NOKSEK=X", "DKKSEK=X", "^OSEBX", "OSEBX.OL", "^OSEAX", "OBX.OL", "^OMXC25"]  # flera kandidater för norska index, byggaren tar den med längst historik
 KURSER, INFO = Path("divergens_nordic.csv"), Path("divergens_nordic_info.csv")
 START = "2016-01-01"
 

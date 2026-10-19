@@ -5,7 +5,7 @@ name: Divergens nordiska kurser
 on:
   workflow_dispatch:
   schedule:
-    - cron: "40 15 * * 1-5"   # ca 17:40 svensk sommartid (16:40 vintertid)
+    - cron: "50 16 * * 1-5"   # 18:50 svensk sommartid, 17:50 vintertid (efter stängning i Oslo och Köpenhamn)
 
 concurrency:
   group: divergens_kurser

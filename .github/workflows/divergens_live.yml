@@ -1,0 +1,76 @@
+name: Divergensscreen
+
+# Bygger Divergensscreen med kurser under dagen (preliminärt) eller efter stängning (bekräftat) och skickar notiser.
+# Startas av den schemalagda Claude-uppgiften (varje timme 09:15-17:15 och efter stängning), som sedan publicerar
+# divergens.html till artefakten. Inget cron här: GitHubs schemaläggning kan försena körningar 5-20 minuter.
+on:
+  workflow_dispatch:
+    inputs:
+      lage:
+        description: "prel (under dagen) eller bekraftat (efter stängning)"
+        type: choice
+        options: [prel, bekraftat]
+        default: prel
+      notiser:
+        description: "Skicka notiser"
+        type: boolean
+        default: true
+
+concurrency:
+  group: divergens_live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bygg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - run: cp _kod/*.py _kod/*_mall.html .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pandas numpy yfinance requests matplotlib
+      - name: Kurser
+        id: kurser
+        run: |
+          set +e
+          if [ "${{ inputs.lage }}" = "bekraftat" ]; then python -u divergens_live.py --stangt; else python -u divergens_live.py; fi
+          kod=$?
+          if [ $kod -eq 3 ]; then echo "stangt=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit $kod
+      - name: Bygg
+        if: steps.kurser.outputs.stangt != '1'
+        run: |
+          extra=""; [ "${{ inputs.lage }}" = "bekraftat" ] && extra="--bekraftat"
+          python -u divergens_bygg.py . divergens.html --live divergens_live.json $extra
+      - name: Notiser
+        if: steps.kurser.outputs.stangt != '1' && inputs.notiser
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python -u divergens_notis.py --lage ${{ inputs.lage }}
+      - name: Spara
+        if: steps.kurser.outputs.stangt != '1'
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          for f in divergens.html divergens_status.json divergens_state.json divergens_live.json divergens_live_meta.json; do [ -f "$f" ] && git add "$f"; done
+          git diff --cached --quiet || git commit -m "divergens: ${{ inputs.lage }} $(TZ=Europe/Stockholm date +'%F %H:%M')"
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1

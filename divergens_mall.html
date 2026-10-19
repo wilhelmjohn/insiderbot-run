@@ -1,0 +1,222 @@
+<title>Divergensscreen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow scanning column; summary strip, status filter, then expandable rows per stock */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#eef1f3; --ink:#141a1e; --muted:#5b6770; --faint:#8a959c; --line:#dce2e5;
+  --accent:#1e5c86;
+  --buy:#1b7443; --buy-bg:#e3f2e8; --near:#9a5c00; --near-bg:#fbefd9; --watch:#46606f; --watch-bg:#e5ecf0;
+  --avoid:#ad3a31; --avoid-bg:#f8e4e1; --out:#6f7a80; --out-bg:#eceff1;
+  --c-price:#1e5c86; --c-rsi:#6a737a; --c-low:#c46a00; --c-div:#1b7443; --c-grid:#e4e8ea;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif; --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1214; --surface:#161c20; --sunk:#1c2328; --ink:#e5eaed; --muted:#9aa7af; --faint:#6f7c84; --line:#27323a;
+  --accent:#74b6e2;
+  --buy:#5fcf8c; --buy-bg:#16301f; --near:#f0b45a; --near-bg:#33260f; --watch:#9fb6c3; --watch-bg:#1d2a32;
+  --avoid:#f08a80; --avoid-bg:#3a1a17; --out:#8e999f; --out-bg:#20272b;
+  --c-price:#74b6e2; --c-rsi:#9aa7af; --c-low:#f0a24a; --c-div:#5fcf8c; --c-grid:#232c32; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1214; --surface:#161c20; --sunk:#1c2328; --ink:#e5eaed; --muted:#9aa7af; --faint:#6f7c84; --line:#27323a;
+  --accent:#74b6e2;
+  --buy:#5fcf8c; --buy-bg:#16301f; --near:#f0b45a; --near-bg:#33260f; --watch:#9fb6c3; --watch-bg:#1d2a32;
+  --avoid:#f08a80; --avoid-bg:#3a1a17; --out:#8e999f; --out-bg:#20272b;
+  --c-price:#74b6e2; --c-rsi:#9aa7af; --c-low:#f0a24a; --c-div:#5fcf8c; --c-grid:#232c32; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font:700 26px/1.15 var(--f-display);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.stamp{font-size:12px;color:var(--muted);text-align:right}
+.mode{display:inline-block;font:600 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-bottom:4px}
+.mode.ok{background:var(--buy-bg);color:var(--buy)} .mode.prel{background:var(--near-bg);color:var(--near)}
+.market{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 16px;align-items:start}
+.market .f{font-size:12px;color:var(--muted)}.market .f b{color:var(--text)}
+.land{font:600 10px var(--f-mono);letter-spacing:.04em;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+.market .big{font:600 22px var(--f-mono)}
+.market .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.market p{margin:0;font-size:13px;color:var(--muted);grid-column:1/-1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .n{font-family:var(--f-mono);margin-left:4px;opacity:.7}
+.chip:focus-visible,.row-head:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;border-left:4px solid var(--st);border-radius:0 10px 10px 0}
+.row-head{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:12px 14px;cursor:pointer}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.who{display:flex;gap:8px;align-items:baseline;min-width:0;flex-wrap:wrap}
+.pill{font:600 11px var(--f-body);letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--stbg);color:var(--st);white-space:nowrap}
+.name{font:600 16px var(--f-display)}
+.tk{font:12px var(--f-mono);color:var(--faint)}
+.price{font:500 16px var(--f-mono);white-space:nowrap}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.m{background:var(--sunk);border-radius:6px;padding:6px 8px;min-width:0}
+.m .k{display:block;font-size:11px;color:var(--faint);letter-spacing:.02em}
+.m .v{display:block;font-weight:500;font-size:13px;line-height:1.3}
+.levels{margin-top:8px;font-size:13px;color:var(--ink);display:flex;flex-wrap:wrap;gap:4px 14px}
+.levels b{font-weight:500;color:var(--muted);font-size:12px;margin-right:3px}
+.flags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.flag{font-size:12px;padding:2px 7px;border-radius:4px;background:var(--sunk);color:var(--muted)}
+.flag.pos{background:var(--buy-bg);color:var(--buy)} .flag.neg{background:var(--avoid-bg);color:var(--avoid)}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.detail{border-top:1px solid var(--line);padding:12px 14px 16px;display:flex;flex-direction:column;gap:14px}
+.dgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.sec h3{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+.chart{position:relative;height:170px}
+.chart.small{height:110px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:4px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+.legend i.dash{border-top-style:dashed} .legend i.tri{width:0;border:5px solid transparent;border-bottom:8px solid var(--buy);border-top:0;vertical-align:1px}
+.legend i.line{border-top:0;border-left:2px dotted var(--faint);height:10px;width:0}
+.why{font-size:14px;margin:0;max-width:65ch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:500;color:var(--faint);text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 6px 4px 0;border-bottom:1px solid var(--line)}
+td{padding:5px 6px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right}
+.tbl{overflow-x:auto}
+.buy{color:var(--buy)} .sell{color:var(--avoid)}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);font-size:13px}
+details.help{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px}
+details.help summary{cursor:pointer;font-weight:600}
+details.help dl{margin:8px 0 0;display:grid;grid-template-columns:max-content 1fr;gap:6px 14px}
+details.help dt{font-weight:600}
+details.help dd{margin:0;color:var(--muted);max-width:65ch}
+footer{font-size:12px;color:var(--faint);max-width:70ch}
+.row.out{opacity:.75}
+@media (max-width:560px){.metrics,.dgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.market .big{font-size:18px}details.help dl{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Divergensscreen</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <section class="market" id="market" aria-label="Marknadsläge"></section>
+  <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
+  <div class="chips" id="lander" role="group" aria-label="Filtrera på land"></div>
+  <div class="list" id="list"></div>
+  <details class="help">
+    <summary>Så läser du screenen</summary>
+    <dl>
+      <dt>Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Kursen ligger fortfarande inom 1R från signalkursen.</dd>
+      <dt>Närmar sig</dt><dd>Divergensen syns men bottnen är inte bekräftad. Kursen behöver stänga över bottnen två dagar.</dd>
+      <dt>Bevaka</dt><dd>Fallit och översåld, men RSI gör fortfarande lägre bottnar.</dd>
+      <dt>Undvik</dt><dd>Fallit mer än 80 %, eller nyemission eller vinstvarning de senaste 120 dagarna.</dd>
+      <dt>Utgår</dt><dd>Signal de senaste dagarna men stoppen, målet eller ett överköpt läge är nått.</dd>
+      <dt>RSI(9)</dt><dd>Styrkan i de senaste rörelserna, 0–100. Under 30 är svagt, över 70 starkt.</dd>
+      <dt>Stochastic</dt><dd>Var kursen står i 14-dagarsspannet, 0–100. %K under 25 är översålt. När %K korsar upp över %D har den vänt.</dd>
+      <dt>R och 2R</dt><dd>R är avståndet från köpkurs till stopp. 2R är ett mål dubbelt så långt upp. Antal aktier räknas så att stoppen kostar högst 1 000 kr.</dd>
+      <dt>Norge och Danmark</dt><dd>Samma regler som för Stockholm, men de är bara backtestade på svenska aktier. Insyn, blankning och pressmeddelanden finns bara för svenska bolag. Kurser i NOK och DKK, antal aktier räknat i kronor.</dd>
+      <dt>1-årstopp</dt><dd>Högsta stängningskursen de senaste 250 handelsdagarna.</dd>
+    </dl>
+  </details>
+  <footer id="foot"></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const DATA=/*__DATA__*/null;
+const ST={"Köpläge":["--buy","--buy-bg"],"Närmar sig":["--near","--near-bg"],"Bevaka":["--watch","--watch-bg"],"Undvik":["--avoid","--avoid-bg"],"Utgår":["--out","--out-bg"]};
+const ORDER=["Köpläge","Närmar sig","Bevaka","Undvik","Utgår"];
+const nf=(x,d=2)=>x==null||!isFinite(x)?"–":x.toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pc=(x,d=0)=>x==null||!isFinite(x)?"–":(x>0?"+":x<0?"−":"")+Math.abs(x*100).toLocaleString("sv-SE",{maximumFractionDigits:d,minimumFractionDigits:d})+" %";
+const MON=["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const dd=s=>{if(!s)return"–";const[y,m,d]=s.split("-");return `${+d} ${MON[+m-1]}`};
+const kr=x=>Math.abs(x)>=1e6?nf(x/1e6,1)+" MSEK":nf(x/1e3,0)+" tkr";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const M=DATA.meta;
+
+document.getElementById("sub").textContent=`${M.n_se} svenska storbolag inkl. Lyko, ${M.n_no} norska och ${M.n_dk} danska · RSI(9)-divergens enligt reglerna från Bagge-testet`;
+const LN={SE:"Sverige",NO:"Norge",DK:"Danmark"};
+document.getElementById("stamp").innerHTML=M.prel
+ ?`<span class="mode prel">Preliminärt</span><br>Kurser ${esc(M.uppdaterad.slice(11))} · bekräftas efter stängning`
+ :`<span class="mode ok">Bekräftat</span><br>Stängning ${dd(M.kursdag)} · uppdaterad ${dd(M.uppdaterad.slice(0,10))} ${esc(M.uppdaterad.slice(11))}`;
+const MK=["SE","NO","DK"].map(l=>({l,...M.marknad[l]}));
+document.getElementById("market").innerHTML=MK.map(m=>`<div><div class="lbl">${m.namn} från 1-årstopp</div><div class="big">${pc(m.dd,1)}</div><div class="f">Filter <b>${m.dd!=null&&m.dd<=-0.10?"på":"av"}</b></div></div>`).join("")+
+`<p>Marknadsfiltret är på när börsen ligger minst 10 % under sin topp. Det är där signalerna historiskt varit bäst. När det är av gav signalerna i testet ungefär noll i snitt, så var extra selektiv.</p>`;
+document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivning. Kurser: dagliga stängningar från insiderbot${M.prel?", under dagen Yahoo Finance med ca 15 min fördröjning":""}. Norge och Danmark: Yahoo Finance. Insyn: FI, 90 dagar. Blankning: FI. Risk per affär ${M.risk_kr.toLocaleString("sv-SE")} kr.`;
+
+const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+let filt="Alla",land="Alla";
+const lander=document.getElementById("lander");
+["Alla",...["SE","NO","DK"]].forEach(l=>{const n=l==="Alla"?DATA.rows.length:DATA.rows.filter(r=>r.land===l).length;if(l!=="Alla"&&!n)return;
+ const b=document.createElement("button");b.className="chip";b.innerHTML=`${l==="Alla"?"Alla länder":LN[l]}<span class="n">${n}</span>`;b.setAttribute("aria-pressed",l===land);
+ b.onclick=()=>{land=l;[...lander.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};lander.appendChild(b)});
+const chips=document.getElementById("chips");
+["Alla",...ORDER].forEach(s=>{if(s!=="Alla"&&!counts[s])return;const b=document.createElement("button");b.className="chip";b.id="chip-"+s;
+ b.innerHTML=`${s}<span class="n">${s==="Alla"?DATA.rows.length:counts[s]}</span>`;b.setAttribute("aria-pressed",s===filt);
+ b.onclick=()=>{filt=s;[...chips.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};chips.appendChild(b)});
+
+function metric(k,v){return `<div class="m"><span class="k">${k}</span><span class="v">${v}</span></div>`}
+function levels(r){if(!r.niv)return"";const n=r.niv;return `<div class="levels num"><span><b>Köp</b>${nf(n.kop)}</span><span><b>Stopp</b>${nf(n.stopp)}</span><span><b>Mål 2R / 3R</b>${nf(n.m2)} / ${nf(n.m3)}</span><span><b>Antal</b>${n.antal} st (${kr(n.varde)}${r.land!=="SE"?" i SEK":""})</span></div>`}
+function card(r){
+ const [c,b]=ST[r.status];
+ const el=document.createElement("article");el.className="row"+(r.status==="Utgår"?" out":"");el.style.setProperty("--st",`var(${c})`);el.style.setProperty("--stbg",`var(${b})`);
+ const flags=r.flags.map(([t,k])=>`<span class="flag ${k}">${esc(t)}</span>`).join("");
+ el.innerHTML=`<button class="row-head" aria-expanded="false" id="h-${r.t}">
+  <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land}</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
+  <div class="metrics">${metric("Från 1-årstopp",`<span class="num">${pc(r.dd)}</span>`)}${metric("RSI(9)",`<span class="num">${nf(r.rsi,0)}</span>`)}${metric("Stochastic",`${esc(r.stoch)} <span class="num muted">${nf(r.K,0)}/${nf(r.D,0)}</span>`)}${metric("MACD",esc(r.macd))}</div>
+  ${levels(r)}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
+ </button><div class="detail" hidden></div>`;
+ const head=el.querySelector(".row-head"),det=el.querySelector(".detail");
+ head.onclick=()=>{const open=det.hidden;det.hidden=!open;head.setAttribute("aria-expanded",open);if(open&&!det.dataset.done){fill(det,r);det.dataset.done=1}};
+ return el}
+
+function fill(det,r){
+ const L=r.low,n=r.niv;
+ const g=[metric("RSI vid bottnar",L?`<span class="num">${nf(L.r1,0)} → ${nf(L.r2,0)}</span>`:"–"),
+  metric("Kurs vid bottnar",L?`<span class="num">${nf(L.c1)} → ${nf(L.c2)}</span><span class="k">${dd(L.d1)} → ${dd(L.d2)}</span>`:"–"),
+  metric("Volym 10 d mot snitt",`<span class="num">${pc(r.vol)}</span>`),
+  metric("Sektor från topp",`<span class="num">${pc(r.sektor_dd)}</span><span class="k">${esc(r.sektor||"")}</span>`),
+  metric("1-årstopp",`<span class="num">${nf(r.topp)}</span><span class="k">${dd(r.toppdag)}</span>`),
+  metric("Blankning",r.land!=="SE"?"Ej tillgänglig":r.blank?`<span class="num">${nf(r.blank.niva,2)} %</span><span class="k">${pc(r.blank.f20/100,2).replace(" %"," p.e.")} 20 d</span>`:"Ingen rapporterad"),
+  metric("Rapport",r.land!=="SE"?"Ej tillgänglig":r.rapport?dd(r.rapport):"Inte inom 14 d"),
+  metric("Tidigare signaler",r.hist.n?`<span class="num">${r.hist.n} st</span><span class="k">${r.hist.mal} nådde 2R, ${r.hist.stopp} stoppades</span>`:"Inga")];
+ if(n){g.push(metric("Signaldag",dd(n.signaldag)),metric("Risk",`<span class="num">${pc(n.risk,1)}</span>`),metric("Risk/vinst","1 : 2"),metric(`Antal vid ${M.risk_kr} kr risk`,`<span class="num">${n.antal} st</span>`))}
+ const ins=r.land!=="SE"?`<div class="empty">Insynsdata finns bara för svenska bolag.</div>`:r.ins.aff.length?`<div class="tbl"><table><thead><tr><th>Datum</th><th>Person</th><th>Roll</th><th>Typ</th><th class="r">Belopp</th><th class="r">Pris</th><th class="r">Mot nu</th></tr></thead><tbody>${r.ins.aff.map(a=>`<tr><td class="num">${dd(a.d)}</td><td>${esc(a.p)}</td><td class="muted">${esc(a.roll)}</td><td class="${a.typ==="Köp"?"buy":"sell"}">${a.typ}</td><td class="r num">${kr(a.belopp)}</td><td class="r num">${nf(a.pris)}</td><td class="r num">${pc(r.kurs/a.pris-1)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga insynsaffärer de senaste 90 dagarna.</div>`;
+ const ny=r.land!=="SE"?`<div class="empty">Pressmeddelanden finns bara för svenska bolag.</div>`:r.nyheter.length?`<div class="tbl"><table><tbody>${r.nyheter.map(x=>`<tr><td class="num" style="white-space:nowrap">${dd(x.d)}</td><td class="muted" style="white-space:nowrap">${esc(x.typ.replace("_"," "))}</td><td>${esc(x.rubrik)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga pressmeddelanden de senaste 30 dagarna.</div>`;
+ det.innerHTML=`<p class="why">${esc(r.mot)}</p>
+ <div class="dgrid">${g.join("")}</div>
+ <div class="sec"><h3>Kurs, 90 handelsdagar</h3><div class="legend"><span><i style="border-color:var(--c-price)"></i>Stängning</span><span><i class="dash" style="border-color:var(--c-low)"></i>Bottnar</span><span><i class="tri"></i>Insynsköp</span><span><i class="line"></i>Rapport</span></div><div class="chart"><canvas id="p-${r.t}" role="img" aria-label="Kursgraf för ${esc(r.namn)} med bottnar och insynsköp markerade"></canvas></div></div>
+ <div class="sec"><h3>RSI(9)</h3><div class="legend"><span><i style="border-color:var(--c-rsi)"></i>RSI(9)</span><span><i class="dash" style="border-color:var(--c-div)"></i>Bottnar i RSI</span></div><div class="chart small"><canvas id="r-${r.t}" role="img" aria-label="RSI-graf för ${esc(r.namn)} med bottnarna markerade"></canvas></div></div>
+ <div class="sec"><h3>Insyn, 90 dagar</h3>${ins}</div>
+ <div class="sec"><h3>Pressmeddelanden, 30 dagar</h3>${ny}</div>`;
+ draw(r)}
+
+function draw(r){
+ const ch=r.ch,N=ch.d.length,grid=css("--c-grid"),tick=css("--faint");
+ const seg=(arr)=>ch.d.map((_,i)=>ch.lows.includes(i)?arr[i]:null);
+ const idx=s=>{let i=ch.d.findIndex(d=>d>=s);return i<0?null:i};
+ const buys=ch.ins.filter(a=>a.typ==="Köp").map(a=>idx(a.d)).filter(i=>i!=null);
+ const rap=ch.rap.map(idx).filter(i=>i!=null);
+ const vlines={id:"vl",afterDraw(c){const x=c.scales.x,a=c.chartArea,g=c.ctx;g.save();g.strokeStyle=tick;g.setLineDash([2,3]);rap.forEach(i=>{const px=x.getPixelForValue(i);g.beginPath();g.moveTo(px,a.top);g.lineTo(px,a.bottom);g.stroke()});g.restore()}};
+ const xs={type:"category",labels:ch.d,grid:{display:false},ticks:{color:tick,font:{size:10},maxRotation:0,autoSkip:false,callback:(v,i)=>i%15===0||i===N-1?dd(ch.d[i]):""}};
+ const base={responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>dd(ch.d[i[0].dataIndex])}}}};
+ new Chart(document.getElementById("p-"+r.t),{type:"line",data:{labels:ch.d,datasets:[
+  {label:"Stängning",data:ch.c,borderColor:css("--c-price"),borderWidth:1.6,pointRadius:0,spanGaps:true},
+  {label:"Botten",data:seg(ch.c),borderColor:css("--c-low"),borderDash:[5,4],borderWidth:1.5,spanGaps:true,pointRadius:ch.d.map((_,i)=>ch.lows.includes(i)?4:0),pointBackgroundColor:css("--c-low")},
+  {label:"Insynsköp",data:ch.d.map((_,i)=>buys.includes(i)?ch.c[i]:null),showLine:false,pointStyle:"triangle",pointRadius:6,pointBackgroundColor:css("--buy"),borderColor:css("--buy")}]},
+  options:{...base,scales:{x:xs,y:{grid:{color:grid},ticks:{color:tick,font:{size:10},maxTicksLimit:5,callback:v=>nf(v,v<10?2:0)}}}},plugins:[vlines]});
+ new Chart(document.getElementById("r-"+r.t),{type:"line",data:{labels:ch.d,datasets:[
+  {label:"RSI(9)",data:ch.r,borderColor:css("--c-rsi"),borderWidth:1.4,pointRadius:0},
+  {label:"Botten",data:seg(ch.r),borderColor:css("--c-div"),borderDash:[5,4],borderWidth:1.5,spanGaps:true,pointRadius:ch.d.map((_,i)=>ch.lows.includes(i)?4:0),pointBackgroundColor:css("--c-div")}]},
+  options:{...base,scales:{x:xs,y:{min:0,max:100,grid:{color:c=>c.tick.value===30||c.tick.value===70?tick:grid},ticks:{color:tick,font:{size:10},stepSize:10,callback:v=>v===30||v===70?v:""}}}},plugins:[vlines]})}
+
+function render(){const list=document.getElementById("list");list.innerHTML="";
+ const rows=DATA.rows.filter(r=>(filt==="Alla"||r.status===filt)&&(land==="Alla"||r.land===land));
+ if(!rows.length){list.innerHTML=`<div class="empty">Inga bolag i den här gruppen just nu.</div>`;return}
+ rows.forEach(r=>list.appendChild(card(r)))}
+render();
+</script>
