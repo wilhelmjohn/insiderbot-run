@@ -54,8 +54,10 @@ if LIVE:
     from zoneinfo import ZoneInfo
     idag = pd.Timestamp(dt.datetime.now(ZoneInfo("Europe/Stockholm")).date())
     rad = px.iloc[-1].copy()
+    k_idag = k[k.Datum == px.index[-1]].set_index("Ticker").Stang
+    har_idag = idag <= px.index[-1]   # officiella stängningar för i dag finns redan för vissa aktier
     for t, p in LIVE.items():
-        if t in rad.index and p: rad[t] = float(p)
+        if t in rad.index and p and not (har_idag and pd.notna(k_idag.get(t))): rad[t] = float(p)
     if idag > px.index[-1]:
         px.loc[idag] = rad; vo.loc[idag] = np.nan
     else:
