@@ -40,4 +40,9 @@ jobs:
           git config user.email "actions@github.com"
           git add bio_ohlc.csv bio_info.csv bio_tickers.txt
           git diff --cached --quiet || git commit -m "bio: kurser och nyckeltal $(date -u +%F)"
-          git pull --rebase && git push
+          for i in 1 2 3 4; do
+            if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 15 + 5))
+          done
+          exit 1
