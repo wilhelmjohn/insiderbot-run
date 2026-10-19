@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: .github/workflows/intradag.yml
+          cache-dependency-path: _kod/.github/workflows/intradag.yml
 
       - name: Installera beroenden
         run: pip install requests pandas numpy lxml matplotlib scipy
