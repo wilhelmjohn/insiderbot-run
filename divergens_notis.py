@@ -7,6 +7,8 @@
 Förvarning (under dagen): en aktie får en ny köpsignal om dagens kurs står sig till stängningen.
   Högst en förvarning per aktie och dag.
 Köpläge (efter stängning): signalen är bekräftad på stängningskursen. En notis per signal, med köp, stopp, mål och antal.
+I morgon kanske (efter stängning, låg prioritet): en av två stängningar över en ny botten är klar, så aktien blir köpläge
+  om nästa dag också stänger över bottnen. En notis per botten.
 Inget skickas annars. Notisen länkar till screenen (artefakten).
 """
 import argparse, json, os, subprocess, sys
@@ -53,6 +55,28 @@ for t, v in status.items():
 
 # rensa gamla signaler (äldre än 30 dagar) ur minnet
 st["kopnotis"] = {t: d for t, d in st["kopnotis"].items() if d >= (datetime.now() - __import__("datetime").timedelta(days=30)).strftime("%Y-%m-%d")}
+
+# kvällens heads-up: aktier som kan bli köpläge i morgon (en av två stängningar över bottnen klar)
+st.setdefault("imorgon", {})
+snart = []
+if a.lage == "bekraftat":
+    for t, v in status.items():
+        m = v.get("imorgon")
+        if v["status"] == "Närmar sig" and m and st["imorgon"].get(t) != m["bottendag"]:
+            snart.append((t, v)); st["imorgon"][t] = m["bottendag"]
+    st["imorgon"] = {t: d for t, d in st["imorgon"].items() if d >= (datetime.now() - __import__("datetime").timedelta(days=30)).strftime("%Y-%m-%d")}
+if snart:
+    def rad2(t, v):
+        m = v["imorgon"]; val = "" if v.get("valuta", "SEK") == "SEK" else f" {v['valuta']}"
+        return (f"{v['namn']} ({kort(t)}): stängning över {f(m['botten'])}{val} i morgon ger köpläge. "
+                f"Stopp {f(m['stopp'])}, ca {m['antal']} st vid dagens kurs")
+    titel2 = "I morgon kanske: " + ", ".join(v["namn"] for _, v in snart)
+    text2 = "En av två stängningar över bottnen är klar.\n" + "\n".join(rad2(t, v) for t, v in snart)
+    print(titel2); print(text2)
+    if not a.prov:
+        r = subprocess.run([sys.executable, "notis.py", "--sida", text2, "--titel", titel2, "--lank", LANK, "--prio", "2"])
+        if r.returncode:
+            sys.exit(r.returncode)
 
 if not nya:
     print("Inga nya notiser.")

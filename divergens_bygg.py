@@ -242,7 +242,7 @@ for t in univ:
     now = c[-1]; dd = now / hi250[-1] - 1
     top_i = len(c) - 250 + int(np.nanargmax(c[-250:]))
     sigs = s1_signals(c, r, K, hi250)
-    status, niv, pair, note = None, None, None, ""
+    status, niv, pair, note, imorgon = None, None, None, "", None
     last = sigs[-1] if sigs else None
     if last and last["i"] >= T - 8:
         e, R = last["e"], last["risk"]; stop = e * (1 - R)
@@ -265,6 +265,12 @@ for t in univ:
             ups = sum(1 for x in c[m + 1:] if x > c[m])
             status = "Närmar sig"
             note = "Bottnen ej bekräftad, behöver två stängningar över bottnen" if ups < 2 else "Väntar på att stochastic varit översåld"
+            # en av två stängningar över bottnen klar: blir köpläge i morgon om nästa stängning också ligger över bottnen
+            if m == len(c) - 2 and now > c[m] and np.nanmin(K[-3:]) < 25 and (now - c[m] * 0.99) / now <= 0.08:
+                stopp_ = c[m] * 0.99; fx = fx_sek(LAND(t))
+                imorgon = dict(botten=float(c[m]), bottendag=dates[m].strftime("%Y-%m-%d"), stopp=float(stopp_),
+                               antal=int(RISK_KR // (max(now - stopp_, now * 0.015) * fx)))
+                note = f"En av två stängningar över bottnen klar. Blir köpläge i morgon om kursen stänger över {c[m]:.2f}".replace(".", ",")
         elif now <= 1.06 * np.nanmin(c[-20:]) and (K[-1] < 25 or r[-1] < 35):
             status = "Bevaka"; note = "Översåld men ingen positiv divergens än"
             if prior: pair = (prior[-1], m)
@@ -331,7 +337,7 @@ for t in univ:
     rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=(MARKNAD[land]["dd"] or 0) <= -0.10, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
                      toppdag=dates[top_i].strftime("%Y-%m-%d"), rsi=float(r[-1]), K=float(K[-1]), D=float(D[-1]),
                      stoch=stoch_text(K, D), macd=macd_text(h), vol=vol, sektor_dd=sdd, ins=ins, blank=blank, rapport=rapport,
-                     nyheter=nyheter, niv=niv, low=lowinfo, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
+                     nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
                      mot=" ".join(mot), not_=note, live=t in LIVE, ch=ch))
 
 ORD = {"Köpläge": 0, "Närmar sig": 1, "Bevaka": 2, "Undvik": 3, "Utgår": 4}
@@ -342,7 +348,7 @@ meta = dict(uppdaterad=dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%
             n_univ=len(univ), n_se=sum(1 for t in univ if LAND(t) == "SE"), n_no=sum(1 for t in univ if LAND(t) == "NO"),
             n_dk=sum(1 for t in univ if LAND(t) == "DK"), marknad=MARKNAD, risk_kr=RISK_KR)
 data = dict(meta=meta, rows=rows)
-json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"]) for r in rows},
+json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"]) for r in rows},
           open(UT.rsplit(".", 1)[0] + "_status.json", "w"), ensure_ascii=False, indent=1)
 mall = open(__file__.rsplit("/", 1)[0] + "/divergens_mall.html", encoding="utf-8").read()
 open(UT, "w", encoding="utf-8").write(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)))
