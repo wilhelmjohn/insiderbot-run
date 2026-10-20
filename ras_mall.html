@@ -46,6 +46,9 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .posbox h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
 .posbox .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
 .posbox .p:first-of-type{border-top:0}
+.posbox .p.klick{cursor:pointer}.posbox .p.klick:hover{background:var(--sunk)}
+.gr{grid-column:1/-1;position:relative;height:190px;margin-top:6px}
+.cum{position:relative;height:170px;grid-column:1/-1}
 .posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -108,6 +111,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <div class="stamp" id="stamp"></div>
   </header>
   <section class="market" id="sum" aria-label="Facit"></section>
+  <section class="posbox" id="cumbox" hidden><h2>Facit över tid (summa R för avslutade)</h2><div class="cum"><canvas id="cum" role="img" aria-label="Summerat resultat i R för avslutade pappersblankningar över tid"></canvas></div></section>
   <section class="posbox" id="open"></section>
   <section class="posbox" id="wait"></section>
   <section class="posbox" id="done"></section>
@@ -125,6 +129,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   </details>
   <footer>Papperstest, ingen handel och inga råd. Kurser: dagliga stängningar. Insyn: FI.</footer>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const DATA=/*__DATA__*/null;
 const nf=(x,d=2)=>x==null||!isFinite(x)?"–":x.toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -139,13 +144,37 @@ document.getElementById("stamp").innerHTML=`<span class="mode prel">Papperstest<
 const box=(l,s)=>`<div><div class="lbl">${l}</div><div class="big">${s.klara?pc(s.snitt,2):"–"}</div><div class="f">${s.n} signaler, ${s.klara} avslutade${s.klara?` · träff ${nf(100*s.traff,0)} % · mot index ${pc(s.rel,2)}`:""}</div></div>`;
 document.getElementById("sum").innerHTML=box("Alla, snitt per affär",M.alla)+box("Börsen nära topp",M.topp)+box("Börsen ≥ 10 % ned",M.ned)+
  `<p>Facit räknas bara på signaler från ${dd(M.start)}. Backtestet gav +0,62 % per affär när börsen låg nära toppen och förlust när den fallit. Ungefär 50 signaler per år väntas, så ett halvår ger en första bild men inget säkert svar.</p>`;
-const sec=(id,h,rows,empty)=>{document.getElementById(id).innerHTML=`<h2>${h}</h2>`+(rows.length?rows.join(""):`<div class="empty">${empty}</div>`)};
+const REG={};let nid=0;
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const klick=(r,html)=>{const id="g"+(nid++);REG[id]=r;return html.replace('<div class="p">',`<div class="p klick" data-g="${id}" tabindex="0" role="button" aria-expanded="false">`)};
+const sec=(id,h,rows,empty)=>{document.getElementById(id).innerHTML=`<h2>${h}</h2>`+(rows.length?rows.join("")+`<div class="f muted" style="font-size:12px;margin-top:6px">Tryck på en rad för graf.</div>`:`<div class="empty">${empty}</div>`)};
+function rita(el,r){const ch=r.ch;if(!ch||!window.Chart)return;const N=ch.d.length,tick=css("--faint"),grid=css("--c-grid");
+ const w=document.createElement("div");w.className="gr";w.innerHTML=`<canvas aria-label="Kursgraf för ${esc(r.namn)} med rasdag, ingång och nivåer"></canvas>`;el.appendChild(w);
+ const H=[];if(ch.in_!=null){H.push([r.stopp0,css("--avoid"),"Stopp"]);if(r.m2)H.push([r.m2,css("--buy"),"2R"]);if(r.m3)H.push([r.m3,css("--buy"),"3R"])}
+ const V=[[ch.ras,css("--avoid"),"Ras"]];if(ch.in_!=null)V.push([ch.in_,css("--ink"),"Blankad"]);if(ch.ut!=null)V.push([ch.ut,css("--buy"),"Ut"]);
+ const pl={id:"lin",afterDraw(c){const x=c.scales.x,y=c.scales.y,a=c.chartArea,g=c.ctx;g.save();g.font="10px sans-serif";
+  H.forEach(([v,col,l])=>{const py=y.getPixelForValue(v);if(py<a.top||py>a.bottom)return;g.strokeStyle=col;g.setLineDash([4,3]);g.beginPath();g.moveTo(a.left,py);g.lineTo(a.right,py);g.stroke();g.fillStyle=col;g.fillText(l,a.right-22,py-3)});
+  V.forEach(([i,col,l])=>{const px=x.getPixelForValue(i);g.strokeStyle=col;g.setLineDash([2,3]);g.beginPath();g.moveTo(px,a.top);g.lineTo(px,a.bottom);g.stroke();g.fillStyle=col;g.fillText(l,px+3,a.top+10)});g.restore()}};
+ new Chart(w.firstChild,{type:"line",data:{labels:ch.d,datasets:[{label:"Kurs",data:ch.c,borderColor:css("--c-price"),borderWidth:1.6,pointRadius:0,spanGaps:true},
+  {label:"OMXSPI (omräknat)",data:ch.ix,borderColor:css("--c-rsi"),borderDash:[3,3],borderWidth:1.2,pointRadius:0,spanGaps:true}]},
+  options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},
+  plugins:{legend:{display:true,labels:{boxWidth:12,font:{size:11},color:tick}},tooltip:{callbacks:{title:i=>dd(ch.d[i[0].dataIndex])}}},
+  scales:{x:{grid:{display:false},ticks:{color:tick,font:{size:10},maxRotation:0,autoSkip:false,callback:(v,i)=>i%10===0||i===N-1?dd(ch.d[i]):""}},
+  y:{grid:{color:grid},ticks:{color:tick,font:{size:10},maxTicksLimit:5,callback:v=>nf(v,v<10?2:0)}}}},plugins:[pl]})}
+document.addEventListener("click",e=>{if(e.target.closest(".gr"))return;const p=e.target.closest(".p.klick");if(!p)return;const open=p.getAttribute("aria-expanded")==="true";
+ const g=p.querySelector(".gr");if(g){g.hidden=open}else if(!open){rita(p,REG[p.dataset.g])}p.setAttribute("aria-expanded",!open)});
+document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches(".p.klick")){e.preventDefault();e.target.click()}});
 const F=DATA.facit, open=F.filter(r=>!r.klar), done=F.filter(r=>r.klar);
 const rowF=r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${r.top80?"":` <span class="land">MINDRE</span>`}<div class="levels num"><span><b>Ras</b>${dd(r.rasdag)}</span><span><b>Blankad</b>${nf(r.ingang)} · ${dd(r.signaldag)}</span><span><b>Stopp</b>${nf(r.stopp_nu??r.stopp0)}</span><span><b>2R / 3R</b>${nf(r.m2)} / ${nf(r.m3)}</span>${r.klar?`<span><b>Ut</b>${esc(r.ut)} ${dd(r.slutdag)} à ${nf(r.slutkurs)}</span>`:`<span><b>Dag</b>${r.dagar} av 10</span>`}</div></div>
  <div class="num" style="text-align:right"><div class="price">${nf(r.klar?r.slutkurs:r.kurs_nu)}</div><div class="${r.res>=0?"buy":"sell"}">${pc(r.res,1)} · ${(r.R>=0?"+":"−")+nf(Math.abs(r.R),1)}R</div>${r.klar&&r.rel!=null?`<div class="muted" style="font-size:12px">mot index ${pc(r.rel,1)}</div>`:""}</div></div>`;
-sec("open","Öppna pappersblankningar",open.map(rowF),"Inga öppna just nu.");
-sec("wait","Väntar på dag 5",DATA.vantar.map(r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${r.top80?"":` <span class="land">MINDRE</span>`}<div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)} (${pp(r.mot_index,1)} mot index)</span><span><b>Sedan dess</b>${pp(r.sedan,1)}, mot index ${pp(r.rel,1)}</span><span><b>Kvar</b>${r.kvar} dagar</span></div>${r.orsak?`<div class="nx">${esc(r.orsak)}</div>`:""}</div><div style="text-align:right;font-size:13px" class="${r.just_nu.startsWith("Följer")?"buy":"muted"}">${esc(r.just_nu)}</div></div>`),"Inga ras de senaste fem dagarna.");
-sec("done","Avslutade (facit)",done.map(rowF),"Inga avslutade än. Första möjliga facit kommer cirka två veckor efter start.");
-sec("fore","Signaler före start (ingår inte i facit)",DATA.fore.map(rowF),"Inga.");
-sec("drop","Ras som släpptes",DATA.slappta.map(r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span><div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)}</span><span><b>Sedan dess</b>${pp(r.sedan,1)}</span></div></div><div class="muted" style="text-align:right;font-size:13px">${esc(r.lage.replace("Släppt: ",""))}</div></div>`),"Inga.");
+sec("open","Öppna pappersblankningar",open.map(r=>klick(r,rowF(r))),"Inga öppna just nu.");
+sec("wait","Väntar på dag 5",DATA.vantar.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${r.top80?"":` <span class="land">MINDRE</span>`}<div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)} (${pp(r.mot_index,1)} mot index)</span><span><b>Sedan dess</b>${pp(r.sedan,1)}, mot index ${pp(r.rel,1)}</span><span><b>Kvar</b>${r.kvar} dagar</span></div>${r.orsak?`<div class="nx">${esc(r.orsak)}</div>`:""}</div><div style="text-align:right;font-size:13px" class="${r.just_nu.startsWith("Följer")?"buy":"muted"}">${esc(r.just_nu)}</div></div>`)),"Inga ras de senaste fem dagarna.");
+sec("done","Avslutade (facit)",done.map(r=>klick(r,rowF(r))),"Inga avslutade än. Första möjliga facit kommer cirka två veckor efter start.");
+sec("fore","Signaler före start (ingår inte i facit)",DATA.fore.map(r=>klick(r,rowF(r))),"Inga.");
+sec("drop","Ras som släpptes",DATA.slappta.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span><div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)}</span><span><b>Sedan dess</b>${pp(r.sedan,1)}</span></div></div><div class="muted" style="text-align:right;font-size:13px">${esc(r.lage.replace("Släppt: ",""))}</div></div>`)),"Inga.");
+(function(){const d=done.slice().sort((a,b)=>a.slutdag<b.slutdag?-1:1);if(!d.length||!window.Chart)return;document.getElementById("cumbox").hidden=false;
+ let s=0;const ys=d.map(r=>+(s+=r.R).toFixed(2));const tick=css("--faint");
+ new Chart(document.getElementById("cum"),{type:"line",data:{labels:d.map(r=>dd(r.slutdag)),datasets:[{label:"Summa R",data:ys,borderColor:css("--accent"),borderWidth:1.8,pointRadius:3,stepped:true}]},
+ options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:i=>`${d[i.dataIndex].namn}: ${nf(d[i.dataIndex].R,1)}R, totalt ${nf(i.parsed.y,1)}R`}}},
+ scales:{x:{grid:{display:false},ticks:{color:tick,font:{size:10}}},y:{grid:{color:c=>c.tick.value===0?tick:css("--c-grid")},ticks:{color:tick,font:{size:10}}}}}})})();
 </script>

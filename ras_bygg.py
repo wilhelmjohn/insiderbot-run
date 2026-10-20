@@ -71,8 +71,17 @@ def utfall(i, j, e, stop0):
     rel = None
     if i + HALL <= T - 1:
         rel = -(C[i + HALL, j] / e - 1) + (I[i + HALL] / I[i] - 1) - KOST
-    return dict(klar=True, dagar=slut - i, halv=half, ut=ut, slutdag=dates[slut].strftime("%Y-%m-%d"), slutkurs=f2(C[slut, j]),
+    return dict(klar=True, slut_i=slut, dagar=slut - i, halv=half, ut=ut, slutdag=dates[slut].strftime("%Y-%m-%d"), slutkurs=f2(C[slut, j]),
                 res=pnl - KOST, R=(pnl - KOST) / risk, risk=risk, m2=f2(t2), m3=f2(t3), rel=rel)
+
+
+def graf(j, q, i=None, slut=None):
+    """Kurs och OMXSPI (omräknat till aktiens kurs dagen före raset) från 20 dagar före raset till idag eller ut ur affären."""
+    a = max(0, q - 20); b = min(T - 1, (slut if slut is not None else T - 1) + 3)
+    c = C[a:b + 1, j]; ix = I[a:b + 1] / I[q - 1] * C[q - 1, j]
+    return dict(d=[x.strftime("%Y-%m-%d") for x in dates[a:b + 1]], c=[f2(x) if np.isfinite(x) else None for x in c],
+                ix=[f2(x) if np.isfinite(x) else None for x in ix], ras=q - a, in_=(i - a) if i is not None and i <= b else None,
+                ut=(slut - a) if slut is not None and slut <= b else None)
 
 
 ras, signaler = [], []
@@ -90,7 +99,7 @@ for j, t in enumerate(cols):
         kopdagar = set(dates[q:min(i, T - 1) + 1].normalize()) & KOP.get(t, set())
         if i > T - 1:  # väntar
             sedan = c[T - 1] / c[q] - 1; isedan = I[T - 1] / I[q] - 1
-            ras.append(dict(base, lage="Väntar", dag=T - 1 - q, kvar=i - (T - 1), kurs=f2(c[T - 1]), sedan=f2(100 * sedan),
+            ras.append(dict(base, ch=graf(j, q), lage="Väntar", dag=T - 1 - q, kvar=i - (T - 1), kurs=f2(c[T - 1]), sedan=f2(100 * sedan),
                             rel=f2(100 * (sedan - isedan)), insyn=bool(kopdagar),
                             just_nu=("Insynsköp: utgår" if kopdagar else "Följer villkoren" if (c[T - 1] < c[q] and sedan < isedan) else "Uppfyller inte villkoren just nu")))
             continue
@@ -104,8 +113,8 @@ for j, t in enumerate(cols):
             else:
                 lage = "Signal"
                 signaler.append(dict(base, signaldag=dates[i].strftime("%Y-%m-%d"), ingang=f2(c[i]), stopp=f2(stop0), mk_dd=f2(100 * MKDD[i]),
-                                     i=i, j=j))
-        ras.append(dict(base, lage=lage, dag=T - 1 - q, kurs=f2(c[T - 1]), sedan=f2(100 * sedan), rel=f2(100 * (sedan - isedan))))
+                                     i=i, j=j, q=q))
+        ras.append(dict(base, ch=graf(j, q, i), lage=lage, dag=T - 1 - q, kurs=f2(c[T - 1]), sedan=f2(100 * sedan), rel=f2(100 * (sedan - isedan))))
 
 # logg: signaler från testets start läggs till en gång (ingångsfälten ändras aldrig), utfallet räknas om varje körning
 nu_str = dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M")
@@ -121,6 +130,7 @@ for r in logg.itertuples():
     if r.Ticker not in cols or pd.Timestamp(r.Signaldag) not in dates: continue
     i, j = dates.get_loc(pd.Timestamp(r.Signaldag)), cols.index(r.Ticker)
     u = utfall(i, j, float(r.Ingang), float(r.Stopp))
+    u["ch"] = graf(j, dates.get_loc(pd.Timestamp(r.Rasdag)) if pd.Timestamp(r.Rasdag) in dates else i - VANTA, i, u.get("slut_i"))
     facit.append(dict(t=r.Ticker, namn=namn(r.Ticker), signaldag=r.Signaldag, rasdag=r.Rasdag, ingang=float(r.Ingang), stopp0=float(r.Stopp),
                       mk_dd=float(r.Marknad_dd), top80=str(r.Top80) == "True", loggad=r.Loggad, **u))
 # för sammanhang: senaste signalerna före start (ingår inte i facit)
@@ -128,6 +138,7 @@ fore = []
 for s in signaler:
     if pd.Timestamp(s["signaldag"]) < START:
         u = utfall(s["i"], s["j"], s["ingang"], s["stopp"])
+        u["ch"] = graf(s["j"], s["q"], s["i"], u.get("slut_i"))
         fore.append(dict(t=s["t"], namn=s["namn"], signaldag=s["signaldag"], rasdag=s["rasdag"], ingang=s["ingang"], stopp0=s["stopp"],
                          mk_dd=s["mk_dd"], top80=s["top80"], **u))
 fore.sort(key=lambda x: x["signaldag"], reverse=True)
