@@ -9,6 +9,8 @@ Förvarning (under dagen): en aktie får en ny köpsignal om dagens kurs står s
 Köpläge (efter stängning): signalen är bekräftad på stängningskursen. En notis per signal, med köp, stopp, mål och antal.
 I morgon kanske (efter stängning, låg prioritet): en av två stängningar över en ny botten är klar, så aktien blir köpläge
   om nästa dag också stänger över bottnen. En notis per botten.
+Sälj (mina positioner i divergens_positioner.json, prio 5): stoppen nådd (kolla att ordern gått), målet 2R (sälj halva,
+  flytta stopp till köpkurs), målet 3R (sälj resten), 10 handelsdagar (sälj resten, bara efter stängning). En notis per händelse.
 Inget skickas annars. Notisen länkar till screenen (artefakten).
 """
 import argparse, json, os, subprocess, sys
@@ -42,6 +44,7 @@ def rad(t, v):
 
 
 nya = []
+POS = status.pop("_positioner", [])
 for t, v in status.items():
     n = v.get("niv")
     if v["status"] != "Köpläge" or not n:
@@ -95,5 +98,37 @@ else:
         r = subprocess.run([sys.executable, "notis.py", "--sida", text, "--titel", titel, "--lank", LANK, "--prio", str(prio)])
         if r.returncode:
             sys.exit(r.returncode)
+# ---------- säljnotiser för mina positioner ----------
+PF = Path("divergens_positioner.json")
+if POS and PF.exists():
+    pf = json.load(open(PF, encoding="utf-8")); byt = {(x["ticker"], x["datum"]): x for x in pf.get("positioner", [])}
+    salj = []
+    for p_ in POS:
+        x = byt.get((p_["ticker"], p_["datum"]))
+        if not x: continue
+        nt = x.setdefault("notis", {}); val = "" if p_["valuta"] == "SEK" else f" {p_['valuta']}"
+        namn_ = f"{p_['namn']} ({kort(p_['ticker'])})"
+        tag = " (preliminärt)" if a.lage == "prel" else ""
+        if p_["nu"] <= p_["stopp"] and not nt.get("stopp"):
+            nt["stopp"] = idag; x["stangd"] = idag
+            salj.append(f"{namn_}: kursen {f(p_['nu'])}{val} har nått stoppen {f(p_['stopp'])}{tag}. Kontrollera att stop loss-ordern har gått, annars sälj {p_['antal_kvar']} st.")
+        elif not nt.get("m2") and p_["nu"] >= p_["m2"]:
+            nt["m2"] = idag
+            salj.append(f"{namn_}: målet 2R {f(p_['m2'])}{val} är nått{tag}. Sälj halva ({p_['antal'] // 2} st) och flytta stop loss till köpkursen {f(p_['kurs'])}.")
+        elif nt.get("m2") and not nt.get("m3") and p_["nu"] >= p_["m3"]:
+            nt["m3"] = idag; x["stangd"] = idag
+            salj.append(f"{namn_}: målet 3R {f(p_['m3'])}{val} är nått{tag}. Sälj resten ({p_['antal_kvar']} st).")
+        elif a.lage == "bekraftat" and p_["dagar"] >= 10 and not nt.get("tid"):
+            nt["tid"] = idag; x["stangd"] = idag
+            salj.append(f"{namn_}: 10 handelsdagar har gått sedan köpet. Sälj resten ({p_['antal_kvar']} st), kurs nu {f(p_['nu'])}{val}.")
+    if salj:
+        titel3 = "Sälj: " + ", ".join(s_.split(" (")[0] for s_ in salj)
+        text3 = "\n".join(salj)
+        print(titel3); print(text3)
+        if not a.prov:
+            r = subprocess.run([sys.executable, "notis.py", "--sida", text3, "--titel", titel3, "--lank", LANK, "--prio", "5"])
+            if r.returncode: sys.exit(r.returncode)
+            json.dump(pf, open(PF, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
 if not a.prov:
     json.dump(st, open(STATE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

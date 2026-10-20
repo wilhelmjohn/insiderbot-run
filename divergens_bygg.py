@@ -425,8 +425,25 @@ meta = dict(uppdaterad=dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%
             senast_stang=senast_stang.strftime("%Y-%m-%d"), prel=prel, mk_dd=mk_dd, mk_filter=MARKNAD["SE"]["filter"], bredd_grans=BREDD_GRANS, rs_grans=RS_GRANS,
             n_univ=len(univ), n_se=sum(1 for t in univ if LAND(t) == "SE"), n_no=sum(1 for t in univ if LAND(t) == "NO"),
             n_dk=sum(1 for t in univ if LAND(t) == "DK"), marknad=MARKNAD, risk_kr=RISK_KR)
+# ---------- mina positioner (divergens_positioner.json, läggs in med divergens_position.py) ----------
+POS = []
+try:
+    _pos = json.load(open(DATA + "divergens_positioner.json", encoding="utf-8")).get("positioner", [])
+except FileNotFoundError:
+    _pos = []
+for ps_ in _pos:
+    if ps_.get("stangd") or ps_["ticker"] not in px.columns: continue
+    c_ = px[ps_["ticker"]]; nu_ = float(c_.dropna().iloc[-1]); e_ = float(ps_["kurs"]); stp = float(ps_["stopp"])
+    R_ = e_ - stp; halv = bool(ps_.get("notis", {}).get("m2"))
+    dagar = int((c_.index > pd.Timestamp(ps_["datum"])).sum())
+    POS.append(dict(ticker=ps_["ticker"], namn=namn(ps_["ticker"]), land=LAND(ps_["ticker"]), valuta=VALUTA[LAND(ps_["ticker"])],
+                    antal=int(ps_["antal"]), kurs=e_, datum=ps_["datum"], nu=nu_, stopp=e_ if halv else stp, stopp_ursp=stp,
+                    m2=e_ + 2 * R_, m3=e_ + 3 * R_, R=R_, dagar=dagar, dagar_kvar=max(0, 10 - dagar), halv=halv,
+                    antal_kvar=int(ps_["antal"]) - (int(ps_["antal"]) // 2 if halv else 0),
+                    resultat_r=(nu_ - e_) / R_ if R_ > 0 else None, notis=ps_.get("notis", {})))
+meta["positioner"] = POS
 data = dict(meta=meta, rows=rows)
-json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows},
+json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows} | {"_positioner": POS},
           open(UT.rsplit(".", 1)[0] + "_status.json", "w"), ensure_ascii=False, indent=1)
 mall = open(__file__.rsplit("/", 1)[0] + "/divergens_mall.html", encoding="utf-8").read()
 open(UT, "w", encoding="utf-8").write(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)))

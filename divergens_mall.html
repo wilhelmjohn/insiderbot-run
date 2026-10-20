@@ -42,6 +42,11 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .market .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .market p{margin:0;font-size:13px;color:var(--muted);grid-column:1/-1}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
+.pos{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.pos h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.pos .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
+.pos .p:first-of-type{border-top:0}
+.pos .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .chip .n{font-family:var(--f-mono);margin-left:4px;opacity:.7}
@@ -103,6 +108,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <div class="stamp" id="stamp"></div>
   </header>
   <section class="market" id="market" aria-label="Marknadsläge"></section>
+  <section class="pos" id="pos" aria-label="Mina positioner" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
   <div class="chips" id="lander" role="group" aria-label="Filtrera på land"></div>
   <div class="list" id="list"></div>
@@ -152,6 +158,11 @@ document.getElementById("market").innerHTML=MK.map(m=>`<div><div class="lbl">${m
 `<p>Marknadsfiltret är på när index ligger minst 10 % under sin topp <b>eller</b> när mer än 70 % av aktierna ligger under sitt 50-dagarssnitt. Då har signalerna historiskt gett drygt +1 % per affär. När det är av blir en signal bara Köpläge om aktien inte gått mer än 6 procentenheter sämre än index sedan första bottnen; annars Avvakta.</p>`;
 document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivning. Kurser: dagliga stängningar från insiderbot${M.prel?", under dagen Yahoo Finance med ca 15 min fördröjning":""}. Norge och Danmark: Yahoo Finance. Insyn: FI, 90 dagar. Blankning: FI. Risk per affär ${M.risk_kr.toLocaleString("sv-SE")} kr.`;
 
+(function(){const P=M.positioner||[];if(!P.length)return;const el=document.getElementById("pos");el.hidden=false;
+ el.innerHTML=`<h2>Mina positioner</h2>`+P.map(p=>{const v=p.land==="SE"?"":" "+p.valuta;const res=p.nu/p.kurs-1;
+  const nx=p.nu<=p.stopp?"Stoppen nådd: kontrollera att ordern gått.":!p.halv?`Nästa: sälj halva (${Math.floor(p.antal/2)} st) vid ${nf(p.m2)}${v} och flytta stoppen till ${nf(p.kurs)}.`:`Halva såld. Resten säljs vid ${nf(p.m3)}${v}, stopp ${nf(p.stopp)}.`;
+  return `<div class="p"><div><b>${esc(p.namn)}</b> <span class="tk">${esc(p.ticker.replace(/\.(ST|OL|CO)$/,""))}</span><div class="levels num"><span><b>Köpt</b>${p.antal_kvar} st à ${nf(p.kurs)}${v} · ${dd(p.datum)}</span><span><b>Stopp</b>${nf(p.stopp)}</span><span><b>2R / 3R</b>${nf(p.m2)} / ${nf(p.m3)}</span><span><b>Dagar kvar</b>${p.dagar_kvar}</span></div></div>
+  <div class="num" style="text-align:right"><div class="price">${nf(p.nu)}</div><div class="${res>=0?"buy":"sell"}">${pc(res,1)} · ${p.resultat_r==null?"–":(p.resultat_r>=0?"+":"−")+nf(Math.abs(p.resultat_r),1)+"R"}</div></div><div class="nx">${nx}</div></div>`}).join("")})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
