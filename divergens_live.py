@@ -24,7 +24,7 @@ oms = k.groupby("Ticker").oms.median().sort_values(ascending=False)
 tickers = list(oms.index[:100]) + ["LYKO-A.ST"]
 try:
     nord = pd.read_csv("divergens_nordic.csv", usecols=["Ticker"]).Ticker.unique()
-    tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t != "OBX.OL"]
+    tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL")]
 except FileNotFoundError:
     pass
 tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25"]))

@@ -35,6 +35,10 @@ I = mk.values
 MKDD = (mk / pd.read_csv("marknad.csv", parse_dates=["Datum"]).drop_duplicates("Datum").set_index("Datum").Index.rolling(250, min_periods=200).max().reindex(dates).ffill() - 1).values
 sek = pd.read_csv("sektor_info.csv").set_index("Ticker")
 namn = lambda t: re.sub(r"\s*\(publ\.?\)|\s+AB\b|\s+SE\b", "", str(sek.longName.get(t, t))).strip() if t in sek.index else t
+try:
+    NORDNET = pd.read_csv("nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
+except FileNotFoundError:
+    NORDNET = {}
 tm = pd.read_csv("ticker_map.csv"); bid2t = tm.set_index("Bolag_id").Ticker
 kop = pd.read_csv("insiderkop.csv", parse_dates=["Publiceringsdatum"])
 kop = kop[(kop["Karaktär"] == "Förvärv") & (kop["Instrumenttyp"] == "Aktie")].copy()
@@ -93,7 +97,7 @@ for j, t in enumerate(cols):
         if not (dr <= FALL and dr - ir <= REL): continue
         nn = nyh[(nyh.Ticker == t) & (nyh.Publicerat >= dates[q - 1]) & (nyh.Publicerat <= dates[q] + pd.Timedelta(hours=23))]
         orsak = "; ".join(f"{x.Typ.replace('_', ' ')}: {x.Rubrik}" for x in nn.head(2).itertuples())
-        base = dict(t=t, namn=namn(t), rasdag=dates[q].strftime("%Y-%m-%d"), fall=f2(100 * dr), mot_index=f2(100 * (dr - ir)),
+        base = dict(t=t, nordnet=NORDNET.get(t), namn=namn(t), rasdag=dates[q].strftime("%Y-%m-%d"), fall=f2(100 * dr), mot_index=f2(100 * (dr - ir)),
                     rasstang=f2(c[q]), orsak=orsak[:220], top80=bool(TOP80[q, j]))
         i = q + VANTA
         kopdagar = set(dates[q:min(i, T - 1) + 1].normalize()) & KOP.get(t, set())
@@ -131,7 +135,7 @@ for r in logg.itertuples():
     i, j = dates.get_loc(pd.Timestamp(r.Signaldag)), cols.index(r.Ticker)
     u = utfall(i, j, float(r.Ingang), float(r.Stopp))
     u["ch"] = graf(j, dates.get_loc(pd.Timestamp(r.Rasdag)) if pd.Timestamp(r.Rasdag) in dates else i - VANTA, i, u.get("slut_i"))
-    facit.append(dict(t=r.Ticker, namn=namn(r.Ticker), signaldag=r.Signaldag, rasdag=r.Rasdag, ingang=float(r.Ingang), stopp0=float(r.Stopp),
+    facit.append(dict(t=r.Ticker, nordnet=NORDNET.get(r.Ticker), namn=namn(r.Ticker), signaldag=r.Signaldag, rasdag=r.Rasdag, ingang=float(r.Ingang), stopp0=float(r.Stopp),
                       mk_dd=float(r.Marknad_dd), top80=str(r.Top80) == "True", loggad=r.Loggad, **u))
 # för sammanhang: senaste signalerna före start (ingår inte i facit)
 fore = []
@@ -139,7 +143,7 @@ for s in signaler:
     if pd.Timestamp(s["signaldag"]) < START:
         u = utfall(s["i"], s["j"], s["ingang"], s["stopp"])
         u["ch"] = graf(s["j"], s["q"], s["i"], u.get("slut_i"))
-        fore.append(dict(t=s["t"], namn=s["namn"], signaldag=s["signaldag"], rasdag=s["rasdag"], ingang=s["ingang"], stopp0=s["stopp"],
+        fore.append(dict(t=s["t"], nordnet=s.get("nordnet"), namn=s["namn"], signaldag=s["signaldag"], rasdag=s["rasdag"], ingang=s["ingang"], stopp0=s["stopp"],
                          mk_dd=s["mk_dd"], top80=s["top80"], **u))
 fore.sort(key=lambda x: x["signaldag"], reverse=True)
 

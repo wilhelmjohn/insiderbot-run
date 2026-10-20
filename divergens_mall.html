@@ -42,6 +42,8 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .market .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .market p{margin:0;font-size:13px;color:var(--muted);grid-column:1/-1}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
+.nn{display:inline-block;font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin:0 14px 10px}
+.nn:hover{border-color:var(--accent)}.nn.in{margin:4px 0 0}
 .posbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .posbox h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
 .posbox .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
@@ -161,7 +163,7 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
 (function(){const P=M.positioner||[];if(!P.length)return;const el=document.getElementById("pos");el.hidden=false;
  el.innerHTML=`<h2>Mina positioner</h2>`+P.map(p=>{const v=p.land==="SE"?"":" "+p.valuta;const res=p.nu/p.kurs-1;
   const nx=p.nu<=p.stopp?"Stoppen nådd: kontrollera att ordern gått.":!p.halv?`Nästa: sälj halva (${Math.floor(p.antal/2)} st) vid ${nf(p.m2)}${v} och flytta stoppen till ${nf(p.kurs)}.`:`Halva såld. Resten säljs vid ${nf(p.m3)}${v}, stopp ${nf(p.stopp)}.`;
-  return `<div class="p"><div><b>${esc(p.namn)}</b> <span class="tk">${esc(p.ticker.replace(/\.(ST|OL|CO)$/,""))}</span><div class="levels num"><span><b>Köpt</b>${p.antal_kvar} st à ${nf(p.kurs)}${v} · ${dd(p.datum)}</span><span><b>Stopp</b>${nf(p.stopp)}</span><span><b>2R / 3R</b>${nf(p.m2)} / ${nf(p.m3)}</span><span><b>Dagar kvar</b>${p.dagar_kvar}</span></div></div>
+  return `<div class="p"><div><b>${esc(p.namn)}</b> <span class="tk">${esc(p.ticker.replace(/\.(ST|OL|CO)$/,""))}</span>${p.nordnet?` <a class="nn in" href="${esc(p.nordnet)}" target="_blank" rel="noopener">Nordnet ↗</a>`:""}<div class="levels num"><span><b>Köpt</b>${p.antal_kvar} st à ${nf(p.kurs)}${v} · ${dd(p.datum)}</span><span><b>Stopp</b>${nf(p.stopp)}</span><span><b>2R / 3R</b>${nf(p.m2)} / ${nf(p.m3)}</span><span><b>Dagar kvar</b>${p.dagar_kvar}</span></div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(p.nu)}</div><div class="${res>=0?"buy":"sell"}">${pc(res,1)} · ${p.resultat_r==null?"–":(p.resultat_r>=0?"+":"−")+nf(Math.abs(p.resultat_r),1)+"R"}</div></div><div class="nx">${nx}</div></div>`}).join("")})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
@@ -184,7 +186,7 @@ function card(r){
   <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land}</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
   <div class="metrics">${metric("Från 1-årstopp",`<span class="num">${pc(r.dd)}</span>`)}${metric("RSI(9)",`<span class="num">${nf(r.rsi,0)}</span>`)}${metric("Stochastic",`${esc(r.stoch)} <span class="num muted">${nf(r.K,0)}/${nf(r.D,0)}</span>`)}${metric("MACD",esc(r.macd))}</div>
   ${levels(r)}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
- </button><div class="detail" hidden></div>`;
+ </button>${r.nordnet?`<a class="nn" href="${esc(r.nordnet)}" target="_blank" rel="noopener">Öppna i Nordnet ↗</a>`:""}<div class="detail" hidden></div>`;
  const head=el.querySelector(".row-head"),det=el.querySelector(".detail");
  head.onclick=()=>{const open=det.hidden;det.hidden=!open;head.setAttribute("aria-expanded",open);if(open&&!det.dataset.done){fill(det,r);det.dataset.done=1}};
  return el}

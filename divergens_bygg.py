@@ -40,7 +40,7 @@ k = k[k.Ticker.str.endswith(".ST")]
 NORD = pd.read_csv(DATA + "divergens_nordic.csv", parse_dates=["Datum"]) if os.path.exists(DATA + "divergens_nordic.csv") else k.iloc[:0]
 NORD_INFO = pd.read_csv(DATA + "divergens_nordic_info.csv").set_index("Ticker") if os.path.exists(DATA + "divergens_nordic_info.csv") else pd.DataFrame(columns=["Namn", "Sektor", "Valuta"])
 nord_px = NORD.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index()
-NORD_AKTIER = [t for t in nord_px.columns if t.endswith((".OL", ".CO")) and t != "OBX.OL" and nord_px[t].last_valid_index() is not None
+NORD_AKTIER = [t for t in nord_px.columns if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL") and nord_px[t].last_valid_index() is not None
                and nord_px[t].last_valid_index() >= nord_px.index[-1] - pd.Timedelta(days=10)]
 k = pd.concat([k, NORD[NORD.Ticker.isin(NORD_AKTIER)]], ignore_index=True)
 LAND = lambda t: "NO" if t.endswith(".OL") else "DK" if t.endswith(".CO") else "SE"
@@ -98,6 +98,10 @@ def namn(t):
 def sektor(t):
     v = NORD_INFO.Sektor.get(t) if LAND(t) != "SE" else sek.sector.get(t)
     return v if isinstance(v, str) and v else None
+try:
+    NORDNET = pd.read_csv(DATA + "nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
+except FileNotFoundError:
+    NORDNET = {}
 tm = pd.read_csv(DATA + "ticker_map.csv")
 isin2t = tm.dropna(subset=["ISIN"]).drop_duplicates("ISIN").set_index("ISIN").Ticker
 bid2t = tm.set_index("Bolag_id").Ticker
@@ -420,7 +424,7 @@ for t in univ:
                    + (". Att aktien slutat falla mer än index har historiskt varit ett bra tecken." if rs >= -0.01 else "."))
     if note: mot.append(note + ".")
     if land != "SE": mot.append("Insyn, blankning och pressmeddelanden finns bara för svenska bolag, och reglerna är backtestade på Stockholmsbörsen.")
-    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=MARKNAD[land]["filter"], rs=rs, riktk=riktk, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
+    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=MARKNAD[land]["filter"], rs=rs, nordnet=NORDNET.get(t), riktk=riktk, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
                      toppdag=dates[top_i].strftime("%Y-%m-%d"), rsi=float(r[-1]), K=float(K[-1]), D=float(D[-1]),
                      stoch=stoch_text(K, D), macd=macd_text(h), vol=vol, sektor_dd=sdd, ins=ins, blank=blank, rapport=rapport,
                      nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, vb=vb, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
@@ -444,7 +448,7 @@ for ps_ in _pos:
     c_ = px[ps_["ticker"]]; nu_ = float(c_.dropna().iloc[-1]); e_ = float(ps_["kurs"]); stp = float(ps_["stopp"])
     R_ = e_ - stp; halv = bool(ps_.get("notis", {}).get("m2"))
     dagar = int((c_.index > pd.Timestamp(ps_["datum"])).sum())
-    POS.append(dict(ticker=ps_["ticker"], namn=namn(ps_["ticker"]), land=LAND(ps_["ticker"]), valuta=VALUTA[LAND(ps_["ticker"])],
+    POS.append(dict(ticker=ps_["ticker"], namn=namn(ps_["ticker"]), nordnet=NORDNET.get(ps_["ticker"]), land=LAND(ps_["ticker"]), valuta=VALUTA[LAND(ps_["ticker"])],
                     antal=int(ps_["antal"]), kurs=e_, datum=ps_["datum"], nu=nu_, stopp=e_ if halv else stp, stopp_ursp=stp,
                     m2=e_ + 2 * R_, m3=e_ + 3 * R_, R=R_, dagar=dagar, dagar_kvar=max(0, 10 - dagar), halv=halv,
                     antal_kvar=int(ps_["antal"]) - (int(ps_["antal"]) // 2 if halv else 0),
