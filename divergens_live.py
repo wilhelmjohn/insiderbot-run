@@ -27,7 +27,7 @@ try:
     tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t != "OBX.OL"]
 except FileNotFoundError:
     pass
-tickers = list(dict.fromkeys(tickers))
+tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25"]))
 
 h = yf.download(tickers, period="2d", interval="15m", group_by="ticker", auto_adjust=False, progress=False, threads=True)
 live, tid = {}, {}

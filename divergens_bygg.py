@@ -21,7 +21,13 @@ import numpy as np, pandas as pd
 DATA, UT = sys.argv[1].rstrip("/") + "/", sys.argv[2]
 LIVE = {}
 if "--live" in sys.argv:
-    LIVE = json.load(open(sys.argv[sys.argv.index("--live") + 1]))
+    _lf = sys.argv[sys.argv.index("--live") + 1]
+    LIVE = json.load(open(_lf))
+    _mf = os.path.join(os.path.dirname(os.path.abspath(_lf)), "divergens_live_meta.json")
+    if os.path.exists(_mf):
+        from zoneinfo import ZoneInfo as _Z
+        if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
+            print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
 RISK_KR = 1000
 EXTRA = ["LYKO-A.ST"]
 TOPP_N = 80
@@ -108,6 +114,7 @@ rk = pd.read_csv(DATA + "rapportkalender.csv", parse_dates=["Datum"])
 bl = pd.read_csv(DATA + "blankning.csv")
 norm = lambda s: re.sub(r"[^a-z0-9]", "", re.sub(r"\(publ\.?\)|\bab\b|\baktiebolag(et)?\b|\bgroup\b|\bholding\b", "", str(s).lower()))
 bl_map = {norm(r.Emittent): r for r in bl.itertuples()}
+idag_ts0 = px.index[-1]
 mk = pd.read_csv(DATA + "marknad.csv", parse_dates=["Datum"]).set_index("Datum").Index
 mk = mk[~mk.index.duplicated()]
 mk_topp = mk.rolling(250, min_periods=200).max()
@@ -132,6 +139,47 @@ def land_mk(kandidater, suffix, reservnamn):
 MARKNAD = {"SE": dict(namn="OMXSPI", dd=mk_dd),
            "NO": land_mk([("^OSEBX", "OSEBX"), ("OSEBX.OL", "OSEBX"), ("^OSEAX", "OSEAX"), ("OBX.OL", "OBX")], ".OL", "Norska aktier, snitt"),
            "DK": land_mk([("^OMXC25", "OMXC25")], ".CO", "Danska aktier, snitt")}
+
+# Bredd: andel aktier som stänger under sitt 50-dagarssnitt (Sverige: alla Stockholmsaktier i kurser.csv; Norge/Danmark: aktierna i screenen)
+BREDD_GRANS, RS_GRANS, MK_GRANS = 0.70, -0.06, -0.10
+def bredd(cols_):
+    x = px[cols_]; ma = x.rolling(50, min_periods=40).mean()
+    ok = x.iloc[-1].notna() & ma.iloc[-1].notna()
+    return float((x.iloc[-1][ok] < ma.iloc[-1][ok]).mean()) if ok.sum() >= 10 else None
+for l_, cols_ in (("SE", [c_ for c_ in px.columns if c_.endswith(".ST")]), ("NO", [c_ for c_ in NORD_AKTIER if c_.endswith(".OL")]),
+                  ("DK", [c_ for c_ in NORD_AKTIER if c_.endswith(".CO")])):
+    MARKNAD[l_]["bredd"] = bredd(cols_)
+    MARKNAD[l_]["filter"] = bool((MARKNAD[l_]["dd"] is not None and MARKNAD[l_]["dd"] <= MK_GRANS)
+                                 or (MARKNAD[l_]["bredd"] is not None and MARKNAD[l_]["bredd"] > BREDD_GRANS))
+# Index per land på screenens datum (för relativ styrka): OMXSPI, OMXC25, Norge likaviktat
+def _idx_serie(l_):
+    if l_ == "SE":
+        s_ = mk.reindex(px.index).ffill(); sym = "^OMXSPI"
+    elif l_ == "DK" and "^OMXC25" in nord_px.columns:
+        s_ = nord_px["^OMXC25"].reindex(px.index).ffill(); sym = "^OMXC25"
+    else:
+        cols_ = [c_ for c_ in NORD_AKTIER if c_.endswith(".OL" if l_ == "NO" else ".CO")]
+        return (1 + px[cols_].pct_change(fill_method=None).mean(axis=1).fillna(0)).cumprod().values
+    s_ = s_.copy()
+    if LIVE.get(sym) and abs(float(LIVE[sym]) / s_.iloc[-2] - 1) < 0.08: s_.iloc[-1] = float(LIVE[sym])   # skydd mot annan indexskala
+    return s_.values
+INDEX = {l_: _idx_serie(l_) for l_ in ("SE", "NO", "DK")}
+
+# Riktkursändringar (Placera, via riktkurs_nyhet.csv) för svenska bolag, som kontext
+try:
+    rkn = pd.read_csv(DATA + "riktkurs_nyhet.csv", parse_dates=["Datum"])
+    rkn = rkn[(rkn.Typ == "rk") & (rkn.Datum >= idag_ts0 - pd.Timedelta(days=60)) & rkn.Gammal.notna() & (rkn.Valuta == "SEK")]
+except Exception:
+    rkn = pd.DataFrame(columns=["Datum", "Firma", "Bolag", "Ny", "Gammal"])
+_n2t = {}
+for x_ in sek.itertuples():
+    _n2t.setdefault(norm(x_.longName), x_.Index)
+def _match(b_):
+    nb = norm(b_)
+    if nb in _n2t: return _n2t[nb]
+    c_ = [t_ for n_, t_ in _n2t.items() if nb and (n_.startswith(nb) or nb.startswith(n_)) and min(len(n_), len(nb)) >= 4]
+    return c_[0] if len(c_) == 1 else None
+rkn = rkn.assign(Ticker=rkn.Bolag.map(_match)) if len(rkn) else rkn.assign(Ticker=None)
 
 # ---------- indikatorer ----------
 def rsi(c, n=9):
@@ -275,6 +323,20 @@ for t in univ:
             status = "Bevaka"; note = "Översåld men ingen positiv divergens än"
             if prior: pair = (prior[-1], m)
     if status is None: continue
+    # relativ styrka mot index sedan första bottnen; i lugnt marknadsläge krävs att aktien inte gått klart sämre än index
+    land = LAND(t); rs = None
+    if pair:
+        I = INDEX[land]; p0 = pair[0]
+        if np.isfinite(I[p0]) and np.isfinite(I[-1]) and I[p0] > 0:
+            rs = float((now / c[p0] - 1) - (I[-1] / I[p0] - 1))
+    svag_rs = rs is not None and rs < RS_GRANS and not MARKNAD[land]["filter"]
+    if status == "Köpläge" and svag_rs:
+        status = "Avvakta"
+        note = (f"Aktien har gått {abs(100*rs):.0f} procentenheter sämre än index sedan första bottnen medan börsen inte är bredt svag. "
+                "I testet gav det läget förlust i snitt")
+    if imorgon and svag_rs:
+        imorgon = None
+        note = f"En av två stängningar över bottnen klar, men aktien har gått {abs(100*rs):.0f} procentenheter sämre än index sedan första bottnen (blir Avvakta)"
     # undvik
     nn = nyh[(nyh.Ticker == t) & (nyh.Publicerat >= idag_ts - pd.Timedelta(days=120))]
     tunga = nn[nn.Typ.isin(["nyemission", "vinstvarning"])]
@@ -327,6 +389,12 @@ for t in univ:
     if ins["salj_n"]: flags.append((f"Insynssälj {ins['salj_n']} pers · {kr(ins['salj_kr'])}", "neg"))
     if blank and blank["niva"] >= 3: flags.append((f"Blankad {blank['niva']:.1f} %".replace(".", ",") + (" ↑" if blank["f20"] > 0.2 else " ↓" if blank["f20"] < -0.2 else ""), "neu"))
     if rapport: flags.append((f"Rapport {pd.Timestamp(rapport):%-d/%-m}", "neg"))
+    if rs is not None and rs < RS_GRANS: flags.append((f"Svagare än index {100*rs:.0f} p.e.".replace("-", "−"), "neg"))
+    elif rs is not None and rs >= -0.01: flags.append(("Starkare än index", "pos"))
+    rr = rkn[rkn.Ticker == t] if land == "SE" else rkn.iloc[:0]
+    riktk = [dict(d=x.Datum.strftime("%Y-%m-%d"), firma=x.Firma, ny=float(x.Ny), gammal=float(x.Gammal)) for x in rr.sort_values("Datum", ascending=False).head(6).itertuples()]
+    n_sank, n_hoj = int((rr.Ny < rr.Gammal).sum()), int((rr.Ny > rr.Gammal).sum())
+    if n_sank or n_hoj: flags.append((f"Riktkurs 60 d: {n_hoj} höjd, {n_sank} sänkt", "neu"))
     if bolagsnyhet: flags.append(("Bolagsnyhet 30 d", "neg"))
     # motivering
     mot = []
@@ -339,26 +407,28 @@ for t in univ:
         mot.append(f"Volymen vid andra bottnen var {100*x:.0f} % av den vid första" + (" (säljtrycket avtar)" if x < 0.8 else " (mer säljtryck)" if x > 1.2 else "")
                    + (f", och efter bottnen {100*vb['vand']:.0f} % av snittet" if vb["vand"] is not None else "") + ". Volymen har inte gett någon fördel i testet, så se den som kontext.")
     if sdd is not None: mot.append("Hela sektorn har fallit (median " + f"{100*sdd:.0f} %)." if sdd <= -0.15 else f"Sektorn har inte fallit lika mycket (median {100*sdd:.0f} %), så fallet är mer bolagsspecifikt.")
+    if rs is not None:
+        mot.append(f"Sedan första bottnen har aktien gått {abs(100*rs):.0f} procentenheter {'bättre' if rs >= 0 else 'sämre'} än index"
+                   + (". Att aktien slutat falla mer än index har historiskt varit ett bra tecken." if rs >= -0.01 else "."))
     if note: mot.append(note + ".")
-    land = LAND(t)
     if land != "SE": mot.append("Insyn, blankning och pressmeddelanden finns bara för svenska bolag, och reglerna är backtestade på Stockholmsbörsen.")
-    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=(MARKNAD[land]["dd"] or 0) <= -0.10, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
+    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=MARKNAD[land]["filter"], rs=rs, riktk=riktk, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
                      toppdag=dates[top_i].strftime("%Y-%m-%d"), rsi=float(r[-1]), K=float(K[-1]), D=float(D[-1]),
                      stoch=stoch_text(K, D), macd=macd_text(h), vol=vol, sektor_dd=sdd, ins=ins, blank=blank, rapport=rapport,
                      nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, vb=vb, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
                      mot=" ".join(mot), not_=note, live=t in LIVE, ch=ch))
 
-ORD = {"Köpläge": 0, "Närmar sig": 1, "Bevaka": 2, "Undvik": 3, "Utgår": 4}
+ORD = {"Köpläge": 0, "Avvakta": 1, "Närmar sig": 2, "Bevaka": 3, "Undvik": 4, "Utgår": 5}
 rows.sort(key=lambda x: (ORD[x["status"]], x["dd"]))
 from zoneinfo import ZoneInfo
 meta = dict(uppdaterad=dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M"), kursdag=dates[-1].strftime("%Y-%m-%d"),
-            senast_stang=senast_stang.strftime("%Y-%m-%d"), prel=prel, mk_dd=mk_dd, mk_filter=mk_dd <= -0.10,
+            senast_stang=senast_stang.strftime("%Y-%m-%d"), prel=prel, mk_dd=mk_dd, mk_filter=MARKNAD["SE"]["filter"], bredd_grans=BREDD_GRANS, rs_grans=RS_GRANS,
             n_univ=len(univ), n_se=sum(1 for t in univ if LAND(t) == "SE"), n_no=sum(1 for t in univ if LAND(t) == "NO"),
             n_dk=sum(1 for t in univ if LAND(t) == "DK"), marknad=MARKNAD, risk_kr=RISK_KR)
 data = dict(meta=meta, rows=rows)
-json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"]) for r in rows},
+json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows},
           open(UT.rsplit(".", 1)[0] + "_status.json", "w"), ensure_ascii=False, indent=1)
 mall = open(__file__.rsplit("/", 1)[0] + "/divergens_mall.html", encoding="utf-8").read()
 open(UT, "w", encoding="utf-8").write(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)))
 antal = ", ".join(f"{s}: {sum(1 for r in rows if r['status'] == s)}" for s in ORD)
-print(f"{len(rows)} kandidater ({antal}), kursdag {meta['kursdag']}, OMXSPI {100*mk_dd:.1f} % från topp" + (" [PRELIMINÄRT]" if prel else ""))
+print(f"{len(rows)} kandidater ({antal}), kursdag {meta['kursdag']}, OMXSPI {100*mk_dd:.1f} % från topp, bredd {100*(MARKNAD['SE']['bredd'] or 0):.0f} % under 50d, filter {'på' if MARKNAD['SE']['filter'] else 'av'}" + (" [PRELIMINÄRT]" if prel else ""))

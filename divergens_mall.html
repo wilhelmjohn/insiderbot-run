@@ -110,6 +110,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <summary>Så läser du screenen</summary>
     <dl>
       <dt>Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Kursen ligger fortfarande inom 1R från signalkursen.</dd>
+      <dt>Avvakta</dt><dd>Signalen är klar, men börsen är inte bredt svag och aktien har gått mer än 6 procentenheter sämre än index sedan första bottnen. I testet 2016–2026 gav det läget förlust i snitt. Blir Köpläge om marknadsfiltret slår på.</dd>
       <dt>Närmar sig</dt><dd>Divergensen syns men bottnen är inte bekräftad. Kursen behöver stänga över bottnen två dagar.</dd>
       <dt>Bevaka</dt><dd>Fallit och översåld, men RSI gör fortfarande lägre bottnar.</dd>
       <dt>Undvik</dt><dd>Fallit mer än 80 %, eller nyemission eller vinstvarning de senaste 120 dagarna.</dd>
@@ -118,6 +119,8 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
       <dt>Stochastic</dt><dd>Var kursen står i 14-dagarsspannet, 0–100. %K under 25 är översålt. När %K korsar upp över %D har den vänt.</dd>
       <dt>R och 2R</dt><dd>R är avståndet från köpkurs till stopp. 2R är ett mål dubbelt så långt upp. Antal aktier räknas så att stoppen kostar högst 1 000 kr.</dd>
       <dt>Norge och Danmark</dt><dd>Samma regler som för Stockholm, men de är bara backtestade på svenska aktier. Insyn, blankning och pressmeddelanden finns bara för svenska bolag. Kurser i NOK och DKK, antal aktier räknat i kronor.</dd>
+      <dt>Marknadsfilter</dt><dd>På när index ligger minst 10 % under sin 1-årstopp eller när mer än 70 % av aktierna stänger under sitt 50-dagarssnitt. Bredden fångar svaghet under ytan även när index ser stabilt ut.</dd>
+      <dt>Mot index</dt><dd>Aktiens utveckling sedan första bottnen minus indexets. Att aktien slutat falla mer än index är ett tidigt tecken på att köpare tagit över.</dd>
       <dt>Volym</dt><dd>Volymen vid andra bottnen jämfört med den första, och volymen efter bottnen jämfört med 20-dagarssnittet. Lägre volym vid andra bottnen brukar tolkas som att säljtrycket avtar, men i testet 2016–2026 gav varken den eller volymen vid vändningen någon stabil fördel. Visas som kontext.</dd>
       <dt>1-årstopp</dt><dd>Högsta stängningskursen de senaste 250 handelsdagarna.</dd>
     </dl>
@@ -128,8 +131,8 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 const DATA=/*__DATA__*/null;
-const ST={"Köpläge":["--buy","--buy-bg"],"Närmar sig":["--near","--near-bg"],"Bevaka":["--watch","--watch-bg"],"Undvik":["--avoid","--avoid-bg"],"Utgår":["--out","--out-bg"]};
-const ORDER=["Köpläge","Närmar sig","Bevaka","Undvik","Utgår"];
+const ST={"Köpläge":["--buy","--buy-bg"],"Avvakta":["--near","--near-bg"],"Närmar sig":["--near","--near-bg"],"Bevaka":["--watch","--watch-bg"],"Undvik":["--avoid","--avoid-bg"],"Utgår":["--out","--out-bg"]};
+const ORDER=["Köpläge","Avvakta","Närmar sig","Bevaka","Undvik","Utgår"];
 const nf=(x,d=2)=>x==null||!isFinite(x)?"–":x.toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pc=(x,d=0)=>x==null||!isFinite(x)?"–":(x>0?"+":x<0?"−":"")+Math.abs(x*100).toLocaleString("sv-SE",{maximumFractionDigits:d,minimumFractionDigits:d})+" %";
 const MON=["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
@@ -145,8 +148,8 @@ document.getElementById("stamp").innerHTML=M.prel
  ?`<span class="mode prel">Preliminärt</span><br>Kurser ${esc(M.uppdaterad.slice(11))} · bekräftas efter stängning`
  :`<span class="mode ok">Bekräftat</span><br>Stängning ${dd(M.kursdag)} · uppdaterad ${dd(M.uppdaterad.slice(0,10))} ${esc(M.uppdaterad.slice(11))}`;
 const MK=["SE","NO","DK"].map(l=>({l,...M.marknad[l]}));
-document.getElementById("market").innerHTML=MK.map(m=>`<div><div class="lbl">${m.namn} från 1-årstopp</div><div class="big">${pc(m.dd,1)}</div><div class="f">Filter <b>${m.dd!=null&&m.dd<=-0.10?"på":"av"}</b></div></div>`).join("")+
-`<p>Marknadsfiltret är på när börsen ligger minst 10 % under sin topp. Det är där signalerna historiskt varit bäst. När det är av gav signalerna i testet ungefär noll i snitt, så var extra selektiv.</p>`;
+document.getElementById("market").innerHTML=MK.map(m=>`<div><div class="lbl">${m.namn} från 1-årstopp</div><div class="big">${pc(m.dd,1)}</div><div class="f">${m.bredd!=null?`${nf(100*m.bredd,0)} % under 50-d snitt · `:""}Filter <b>${m.filter?"på":"av"}</b></div></div>`).join("")+
+`<p>Marknadsfiltret är på när index ligger minst 10 % under sin topp <b>eller</b> när mer än 70 % av aktierna ligger under sitt 50-dagarssnitt. Då har signalerna historiskt gett drygt +1 % per affär. När det är av blir en signal bara Köpläge om aktien inte gått mer än 6 procentenheter sämre än index sedan första bottnen; annars Avvakta.</p>`;
 document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivning. Kurser: dagliga stängningar från insiderbot${M.prel?", under dagen Yahoo Finance med ca 15 min fördröjning":""}. Norge och Danmark: Yahoo Finance. Insyn: FI, 90 dagar. Blankning: FI. Risk per affär ${M.risk_kr.toLocaleString("sv-SE")} kr.`;
 
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
@@ -181,6 +184,7 @@ function fill(det,r){
   metric("Kurs vid bottnar",L?`<span class="num">${nf(L.c1)} → ${nf(L.c2)}</span><span class="k">${dd(L.d1)} → ${dd(L.d2)}</span>`:"–"),
   metric("Volym 10 d mot snitt",`<span class="num">${pc(r.vol)}</span>`),
   metric("Volym botten 2 mot 1",r.vb&&r.vb.botten!=null?`<span class="num">${nf(100*r.vb.botten,0)} %</span><span class="k">${r.vb.vand!=null?"efter botten "+nf(100*r.vb.vand,0)+" % av snitt":""}</span>`:"–"),
+  metric("Mot index sedan botten 1",r.rs!=null?`<span class="num">${(r.rs>=0?"+":"−")+nf(Math.abs(100*r.rs),0)} p.e.</span><span class="k">${r.rs<M.rs_grans?(r.mk_filter?"svagare, men börsen bredt svag":"klart svagare än index"):r.rs>=-0.01?"starkare än index":"ungefär som index"}</span>`:"–"),
   metric("Sektor från topp",`<span class="num">${pc(r.sektor_dd)}</span><span class="k">${esc(r.sektor||"")}</span>`),
   metric("1-årstopp",`<span class="num">${nf(r.topp)}</span><span class="k">${dd(r.toppdag)}</span>`),
   metric("Blankning",r.land!=="SE"?"Ej tillgänglig":r.blank?`<span class="num">${nf(r.blank.niva,2)} %</span><span class="k">${pc(r.blank.f20/100,2).replace(" %"," p.e.")} 20 d</span>`:"Ingen rapporterad"),
@@ -194,7 +198,8 @@ function fill(det,r){
  <div class="sec"><h3>Kurs, 90 handelsdagar</h3><div class="legend"><span><i style="border-color:var(--c-price)"></i>Stängning</span><span><i class="dash" style="border-color:var(--c-low)"></i>Bottnar</span><span><i class="tri"></i>Insynsköp</span><span><i class="line"></i>Rapport</span></div><div class="chart"><canvas id="p-${r.t}" role="img" aria-label="Kursgraf för ${esc(r.namn)} med bottnar och insynsköp markerade"></canvas></div></div>
  <div class="sec"><h3>RSI(9)</h3><div class="legend"><span><i style="border-color:var(--c-rsi)"></i>RSI(9)</span><span><i class="dash" style="border-color:var(--c-div)"></i>Bottnar i RSI</span></div><div class="chart small"><canvas id="r-${r.t}" role="img" aria-label="RSI-graf för ${esc(r.namn)} med bottnarna markerade"></canvas></div></div>
  <div class="sec"><h3>Insyn, 90 dagar</h3>${ins}</div>
- <div class="sec"><h3>Pressmeddelanden, 30 dagar</h3>${ny}</div>`;
+ <div class="sec"><h3>Pressmeddelanden, 30 dagar</h3>${ny}</div>
+ ${r.land==="SE"?`<div class="sec"><h3>Riktkursändringar, 60 dagar</h3>${r.riktk&&r.riktk.length?`<div class="tbl"><table><thead><tr><th>Datum</th><th>Firma</th><th class="r">Från</th><th class="r">Till</th></tr></thead><tbody>${r.riktk.map(x=>`<tr><td class="num">${dd(x.d)}</td><td>${esc(x.firma)}</td><td class="r num">${nf(x.gammal,0)}</td><td class="r num ${x.ny<x.gammal?"sell":"buy"}">${nf(x.ny,0)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga riktkursändringar hittade.</div>`}</div>`:""}`;
  draw(r)}
 
 function draw(r){
