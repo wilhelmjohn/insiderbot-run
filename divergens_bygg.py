@@ -29,6 +29,7 @@ if "--live" in sys.argv:
         if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
             print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
 RISK_KR = 1000
+MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
 EXTRA = ["LYKO-A.ST"]
 TOPP_N = 80
 
@@ -295,14 +296,21 @@ for t in univ:
     if last and last["i"] >= T - 8:
         e, R = last["e"], last["risk"]; stop = e * (1 - R)
         pair = (last["p"], last["b"])
-        fx = fx_sek(LAND(t)); antal = int(RISK_KR // ((e - stop) * fx))
-        niv = dict(signaldag=dates[last["i"]].strftime("%Y-%m-%d"), kop=e, stopp=stop, m2=e * (1 + 2 * R), m3=e * (1 + 3 * R),
-                   risk=R, antal=antal, varde=antal * e * fx)
+        fx = fx_sek(LAND(t))
+        alder = T - 1 - last["i"]                       # handelsdagar sedan signalen
+        Rk = e * R                                       # R i kronor från signalkursen
+        # nivåerna räknas från dagens kurs (det pris du kan köpa till), stoppen ligger kvar 1 % under bottnen
+        kop_nu = now if now > stop else e
+        Rn = max(kop_nu - stop, kop_nu * 0.015)
+        antal = int(RISK_KR // (Rn * fx))
+        niv = dict(signaldag=dates[last["i"]].strftime("%Y-%m-%d"), signalkurs=e, alder=alder, kop=kop_nu, stopp=stop,
+                   m2=kop_nu + 2 * Rn, m3=kop_nu + 3 * Rn, risk=Rn / kop_nu, antal=antal, varde=antal * kop_nu * fx)
         if now <= stop: status, note = "Utgår", "Stoppen nådd"
-        elif now >= e * (1 + 2 * R): status, note = "Utgår", "Målet 2R nått"
+        elif now >= e + 2 * Rk: status, note = "Utgår", "Målet 2R nått"
         elif K[-1] >= 80: status, note = "Utgår", "Stochastic överköpt, läget passerat"
-        elif now <= e * (1 + R): status = "Köpläge"
-        else: status, note = "Utgår", "Kursen har dragit iväg mer än 1R"
+        elif alder > MAX_ALDER: status, note = "Utgår", f"Signalen är {alder} handelsdagar gammal. Köpläge gäller bara signaldagen och två dagar till"
+        elif now > e + MAX_OVER_R * Rk: status, note = "Utgår", f"Kursen ligger {(now - e) / Rk:.1f}R över signalkursen. För lite uppsida kvar mot risken".replace(".", ",", 1)
+        else: status = "Köpläge"
     if status is None and dd <= -0.15:
         m = len(c) - 10 + int(np.nanargmin(c[-10:]))
         piv = pivots(c[:m])

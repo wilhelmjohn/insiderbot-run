@@ -115,7 +115,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <details class="help">
     <summary>Så läser du screenen</summary>
     <dl>
-      <dt>Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Kursen ligger fortfarande inom 1R från signalkursen.</dd>
+      <dt>Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Köpläget gäller signaldagen och två handelsdagar till, och bara så länge kursen ligger högst 0,5R över signalkursen. Köp, mål och antal räknas från dagens kurs; stoppen ligger kvar under bottnen.</dd>
       <dt>Avvakta</dt><dd>Signalen är klar, men börsen är inte bredt svag och aktien har gått mer än 6 procentenheter sämre än index sedan första bottnen. I testet 2016–2026 gav det läget förlust i snitt. Blir Köpläge om marknadsfiltret slår på.</dd>
       <dt>Närmar sig</dt><dd>Divergensen syns men bottnen är inte bekräftad. Kursen behöver stänga över bottnen två dagar.</dd>
       <dt>Bevaka</dt><dd>Fallit och översåld, men RSI gör fortfarande lägre bottnar.</dd>
@@ -201,7 +201,7 @@ function fill(det,r){
   metric("Blankning",r.land!=="SE"?"Ej tillgänglig":r.blank?`<span class="num">${nf(r.blank.niva,2)} %</span><span class="k">${pc(r.blank.f20/100,2).replace(" %"," p.e.")} 20 d</span>`:"Ingen rapporterad"),
   metric("Rapport",r.land!=="SE"?"Ej tillgänglig":r.rapport?dd(r.rapport):"Inte inom 14 d"),
   metric("Tidigare signaler",r.hist.n?`<span class="num">${r.hist.n} st</span><span class="k">${r.hist.mal} nådde 2R, ${r.hist.stopp} stoppades</span>`:"Inga")];
- if(n){g.push(metric("Signaldag",dd(n.signaldag)),metric("Risk",`<span class="num">${pc(n.risk,1)}</span>`),metric("Risk/vinst","1 : 2"),metric(`Antal vid ${M.risk_kr} kr risk`,`<span class="num">${n.antal} st</span>`))}
+ if(n){g.push(metric("Signaldag",`${dd(n.signaldag)}<span class="k">${n.alder?n.alder+" dagar sedan, signalkurs "+nf(n.signalkurs):"i dag"}</span>`),metric("Risk",`<span class="num">${pc(n.risk,1)}</span>`),metric("Risk/vinst","1 : 2"),metric(`Antal vid ${M.risk_kr} kr risk`,`<span class="num">${n.antal} st</span>`))}
  const ins=r.land!=="SE"?`<div class="empty">Insynsdata finns bara för svenska bolag.</div>`:r.ins.aff.length?`<div class="tbl"><table><thead><tr><th>Datum</th><th>Person</th><th>Roll</th><th>Typ</th><th class="r">Belopp</th><th class="r">Pris</th><th class="r">Mot nu</th></tr></thead><tbody>${r.ins.aff.map(a=>`<tr><td class="num">${dd(a.d)}</td><td>${esc(a.p)}</td><td class="muted">${esc(a.roll)}</td><td class="${a.typ==="Köp"?"buy":"sell"}">${a.typ}</td><td class="r num">${kr(a.belopp)}</td><td class="r num">${nf(a.pris)}</td><td class="r num">${pc(r.kurs/a.pris-1)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga insynsaffärer de senaste 90 dagarna.</div>`;
  const ny=r.land!=="SE"?`<div class="empty">Pressmeddelanden finns bara för svenska bolag.</div>`:r.nyheter.length?`<div class="tbl"><table><tbody>${r.nyheter.map(x=>`<tr><td class="num" style="white-space:nowrap">${dd(x.d)}</td><td class="muted" style="white-space:nowrap">${esc(x.typ.replace("_"," "))}</td><td>${esc(x.rubrik)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga pressmeddelanden de senaste 30 dagarna.</div>`;
  det.innerHTML=`<p class="why">${esc(r.mot)}</p>
