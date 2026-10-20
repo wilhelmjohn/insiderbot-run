@@ -42,11 +42,11 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .market .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 .market p{margin:0;font-size:13px;color:var(--muted);grid-column:1/-1}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
-.pos{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.pos h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
-.pos .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
-.pos .p:first-of-type{border-top:0}
-.pos .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.posbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.posbox h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.posbox .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
+.posbox .p:first-of-type{border-top:0}
+.posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .chip .n{font-family:var(--f-mono);margin-left:4px;opacity:.7}
@@ -108,7 +108,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <div class="stamp" id="stamp"></div>
   </header>
   <section class="market" id="market" aria-label="Marknadsläge"></section>
-  <section class="pos" id="pos" aria-label="Mina positioner" hidden></section>
+  <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
   <div class="chips" id="lander" role="group" aria-label="Filtrera på land"></div>
   <div class="list" id="list"></div>

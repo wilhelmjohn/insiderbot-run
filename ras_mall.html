@@ -1,0 +1,151 @@
+<title>Rasbevakning</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow scanning column; summary strip, status filter, then expandable rows per stock */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --sunk:#eef1f3; --ink:#141a1e; --muted:#5b6770; --faint:#8a959c; --line:#dce2e5;
+  --accent:#1e5c86;
+  --buy:#1b7443; --buy-bg:#e3f2e8; --near:#9a5c00; --near-bg:#fbefd9; --watch:#46606f; --watch-bg:#e5ecf0;
+  --avoid:#ad3a31; --avoid-bg:#f8e4e1; --out:#6f7a80; --out-bg:#eceff1;
+  --c-price:#1e5c86; --c-rsi:#6a737a; --c-low:#c46a00; --c-div:#1b7443; --c-grid:#e4e8ea;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif; --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1214; --surface:#161c20; --sunk:#1c2328; --ink:#e5eaed; --muted:#9aa7af; --faint:#6f7c84; --line:#27323a;
+  --accent:#74b6e2;
+  --buy:#5fcf8c; --buy-bg:#16301f; --near:#f0b45a; --near-bg:#33260f; --watch:#9fb6c3; --watch-bg:#1d2a32;
+  --avoid:#f08a80; --avoid-bg:#3a1a17; --out:#8e999f; --out-bg:#20272b;
+  --c-price:#74b6e2; --c-rsi:#9aa7af; --c-low:#f0a24a; --c-div:#5fcf8c; --c-grid:#232c32; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1214; --surface:#161c20; --sunk:#1c2328; --ink:#e5eaed; --muted:#9aa7af; --faint:#6f7c84; --line:#27323a;
+  --accent:#74b6e2;
+  --buy:#5fcf8c; --buy-bg:#16301f; --near:#f0b45a; --near-bg:#33260f; --watch:#9fb6c3; --watch-bg:#1d2a32;
+  --avoid:#f08a80; --avoid-bg:#3a1a17; --out:#8e999f; --out-bg:#20272b;
+  --c-price:#74b6e2; --c-rsi:#9aa7af; --c-low:#f0a24a; --c-div:#5fcf8c; --c-grid:#232c32; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font:700 26px/1.15 var(--f-display);letter-spacing:-.01em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin-top:4px}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.stamp{font-size:12px;color:var(--muted);text-align:right}
+.mode{display:inline-block;font:600 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-bottom:4px}
+.mode.ok{background:var(--buy-bg);color:var(--buy)} .mode.prel{background:var(--near-bg);color:var(--near)}
+.market{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 16px;align-items:start}
+.market .f{font-size:12px;color:var(--muted)}.market .f b{color:var(--text)}
+.land{font:600 10px var(--f-mono);letter-spacing:.04em;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+.market .big{font:600 22px var(--f-mono)}
+.market .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.market p{margin:0;font-size:13px;color:var(--muted);grid-column:1/-1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.posbox{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.posbox h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
+.posbox .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
+.posbox .p:first-of-type{border-top:0}
+.posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
+.chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .n{font-family:var(--f-mono);margin-left:4px;opacity:.7}
+.chip:focus-visible,.row-head:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;border-left:4px solid var(--st);border-radius:0 10px 10px 0}
+.row-head{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:12px 14px;cursor:pointer}
+.top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.who{display:flex;gap:8px;align-items:baseline;min-width:0;flex-wrap:wrap}
+.pill{font:600 11px var(--f-body);letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:4px;background:var(--stbg);color:var(--st);white-space:nowrap}
+.name{font:600 16px var(--f-display)}
+.tk{font:12px var(--f-mono);color:var(--faint)}
+.price{font:500 16px var(--f-mono);white-space:nowrap}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.m{background:var(--sunk);border-radius:6px;padding:6px 8px;min-width:0}
+.m .k{display:block;font-size:11px;color:var(--faint);letter-spacing:.02em}
+.m .v{display:block;font-weight:500;font-size:13px;line-height:1.3}
+.levels{margin-top:8px;font-size:13px;color:var(--ink);display:flex;flex-wrap:wrap;gap:4px 14px}
+.levels b{font-weight:500;color:var(--muted);font-size:12px;margin-right:3px}
+.flags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.flag{font-size:12px;padding:2px 7px;border-radius:4px;background:var(--sunk);color:var(--muted)}
+.flag.pos{background:var(--buy-bg);color:var(--buy)} .flag.neg{background:var(--avoid-bg);color:var(--avoid)}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.detail{border-top:1px solid var(--line);padding:12px 14px 16px;display:flex;flex-direction:column;gap:14px}
+.dgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.sec h3{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+.chart{position:relative;height:170px}
+.chart.small{height:110px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:4px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
+.legend i.dash{border-top-style:dashed} .legend i.tri{width:0;border:5px solid transparent;border-bottom:8px solid var(--buy);border-top:0;vertical-align:1px}
+.legend i.line{border-top:0;border-left:2px dotted var(--faint);height:10px;width:0}
+.why{font-size:14px;margin:0;max-width:65ch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:500;color:var(--faint);text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 6px 4px 0;border-bottom:1px solid var(--line)}
+td{padding:5px 6px 5px 0;border-bottom:1px solid var(--line);vertical-align:top}
+td.r,th.r{text-align:right}
+.tbl{overflow-x:auto}
+.buy{color:var(--buy)} .sell{color:var(--avoid)}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);font-size:13px}
+details.help{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:14px}
+details.help summary{cursor:pointer;font-weight:600}
+details.help dl{margin:8px 0 0;display:grid;grid-template-columns:max-content 1fr;gap:6px 14px}
+details.help dt{font-weight:600}
+details.help dd{margin:0;color:var(--muted);max-width:65ch}
+footer{font-size:12px;color:var(--faint);max-width:70ch}
+.row.out{opacity:.75}
+@media (max-width:560px){.metrics,.dgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.market .big{font-size:18px}details.help dl{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Rasbevakning</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <section class="market" id="sum" aria-label="Facit"></section>
+  <section class="posbox" id="open"></section>
+  <section class="posbox" id="wait"></section>
+  <section class="posbox" id="done"></section>
+  <section class="posbox" id="fore"></section>
+  <section class="posbox" id="drop"></section>
+  <details class="help">
+    <summary>Regler och backtest</summary>
+    <dl>
+      <dt>Rasdag</dt><dd>Aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI. Alla Stockholmsaktier som omsätter minst 2 MSEK per dag.</dd>
+      <dt>Dag 5</dt><dd>Inga insynsköp sedan raset, kursen fortfarande under rasdagens stängning och sämre än index sedan raset. Då blankas aktien på papper till stängningskursen.</dd>
+      <dt>Stopp och mål</dt><dd>Stopp 1 % över högsta stängning sedan raset (risk 1,5–8 %). Halva köps tillbaka vid 2R och stoppen flyttas till ingången, resten vid 3R, stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär.</dd>
+      <dt>Mot index</dt><dd>Blankad aktie mot köpt OMXSPI i 10 dagar. Visar om aktien fortsätter att gå sämre än börsen, oavsett börsens riktning.</dd>
+      <dt>Backtest 2016–2026</dt><dd>498 signaler: −0,12 % per affär i snitt, men +0,62 % när börsen låg nära toppen (372 st) och −2,56 % när börsen fallit minst 10 % (116 st). Mot slumpvald aktie +0,8 %. Före 2022 −0,78 %, från 2022 +0,34 %. Därför testas det framåt innan någon handel.</dd>
+    </dl>
+  </details>
+  <footer>Papperstest, ingen handel och inga råd. Kurser: dagliga stängningar. Insyn: FI.</footer>
+</div>
+<script>
+const DATA=/*__DATA__*/null;
+const nf=(x,d=2)=>x==null||!isFinite(x)?"–":x.toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pc=(x,d=1)=>x==null||!isFinite(x)?"–":(x>0?"+":x<0?"−":"")+Math.abs(x*100).toLocaleString("sv-SE",{maximumFractionDigits:d,minimumFractionDigits:d})+" %";
+const pp=(x,d=0)=>x==null?"–":(x>0?"+":x<0?"−":"")+nf(Math.abs(x),d)+" %";
+const MON=["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+const dd=s=>{if(!s)return"–";const[y,m,d]=s.split("-");return `${+d} ${MON[+m-1]}`};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const M=DATA.meta, tk=t=>t.replace(/\.ST$/,"");
+document.getElementById("sub").textContent=`Papperstest av blankning efter ras som fortsätter · ${M.n_univ} aktier · start ${dd(M.start)}`;
+document.getElementById("stamp").innerHTML=`<span class="mode prel">Papperstest</span><br>Stängning ${dd(M.kursdag)} · OMXSPI ${pc(M.mk_dd)} från topp`;
+const box=(l,s)=>`<div><div class="lbl">${l}</div><div class="big">${s.klara?pc(s.snitt,2):"–"}</div><div class="f">${s.n} signaler, ${s.klara} avslutade${s.klara?` · träff ${nf(100*s.traff,0)} % · mot index ${pc(s.rel,2)}`:""}</div></div>`;
+document.getElementById("sum").innerHTML=box("Alla, snitt per affär",M.alla)+box("Börsen nära topp",M.topp)+box("Börsen ≥ 10 % ned",M.ned)+
+ `<p>Facit räknas bara på signaler från ${dd(M.start)}. Backtestet gav +0,62 % per affär när börsen låg nära toppen och förlust när den fallit. Ungefär 50 signaler per år väntas, så ett halvår ger en första bild men inget säkert svar.</p>`;
+const sec=(id,h,rows,empty)=>{document.getElementById(id).innerHTML=`<h2>${h}</h2>`+(rows.length?rows.join(""):`<div class="empty">${empty}</div>`)};
+const F=DATA.facit, open=F.filter(r=>!r.klar), done=F.filter(r=>r.klar);
+const rowF=r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${r.top80?"":` <span class="land">MINDRE</span>`}<div class="levels num"><span><b>Ras</b>${dd(r.rasdag)}</span><span><b>Blankad</b>${nf(r.ingang)} · ${dd(r.signaldag)}</span><span><b>Stopp</b>${nf(r.stopp_nu??r.stopp0)}</span><span><b>2R / 3R</b>${nf(r.m2)} / ${nf(r.m3)}</span>${r.klar?`<span><b>Ut</b>${esc(r.ut)} ${dd(r.slutdag)} à ${nf(r.slutkurs)}</span>`:`<span><b>Dag</b>${r.dagar} av 10</span>`}</div></div>
+ <div class="num" style="text-align:right"><div class="price">${nf(r.klar?r.slutkurs:r.kurs_nu)}</div><div class="${r.res>=0?"buy":"sell"}">${pc(r.res,1)} · ${(r.R>=0?"+":"−")+nf(Math.abs(r.R),1)}R</div>${r.klar&&r.rel!=null?`<div class="muted" style="font-size:12px">mot index ${pc(r.rel,1)}</div>`:""}</div></div>`;
+sec("open","Öppna pappersblankningar",open.map(rowF),"Inga öppna just nu.");
+sec("wait","Väntar på dag 5",DATA.vantar.map(r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${r.top80?"":` <span class="land">MINDRE</span>`}<div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)} (${pp(r.mot_index,1)} mot index)</span><span><b>Sedan dess</b>${pp(r.sedan,1)}, mot index ${pp(r.rel,1)}</span><span><b>Kvar</b>${r.kvar} dagar</span></div>${r.orsak?`<div class="nx">${esc(r.orsak)}</div>`:""}</div><div style="text-align:right;font-size:13px" class="${r.just_nu.startsWith("Följer")?"buy":"muted"}">${esc(r.just_nu)}</div></div>`),"Inga ras de senaste fem dagarna.");
+sec("done","Avslutade (facit)",done.map(rowF),"Inga avslutade än. Första möjliga facit kommer cirka två veckor efter start.");
+sec("fore","Signaler före start (ingår inte i facit)",DATA.fore.map(rowF),"Inga.");
+sec("drop","Ras som släpptes",DATA.slappta.map(r=>`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span><div class="levels num"><span><b>Ras</b>${dd(r.rasdag)} ${pp(r.fall,1)}</span><span><b>Sedan dess</b>${pp(r.sedan,1)}</span></div></div><div class="muted" style="text-align:right;font-size:13px">${esc(r.lage.replace("Släppt: ",""))}</div></div>`),"Inga.");
+</script>
