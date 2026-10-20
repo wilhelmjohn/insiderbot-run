@@ -11,8 +11,9 @@ I morgon kanske (efter stängning, låg prioritet): en av två stängningar öve
   om nästa dag också stänger över bottnen. En notis per botten.
 Sälj (mina positioner i divergens_positioner.json, prio 5): stoppen nådd (kolla att ordern gått), målet 2R (sälj halva,
   flytta stopp till köpkurs), målet 3R (sälj resten), 10 handelsdagar (sälj resten, bara efter stängning). En notis per händelse.
-Bevakning (aktier i divergens_bevaka.json, efter stängning, prio 3): ändrad status, stochastic blir översåld, ny lägsta
-  stängning på 20 dagar eller "kan bli köpläge i morgon". En notis per ändring.
+Bevakning (aktier i divergens_bevaka.json, prio 3): ändrad status, stochastic blir översåld eller ny lägsta stängning
+  på 20 dagar, jämfört med förra stängningen. Under dagen (preliminärt) och efter stängning; samma händelse högst en gång
+  per dag. "Kan bli köpläge i morgon" bara efter stängning.
 Inget skickas annars. Notisen länkar till screenen (artefakten).
 """
 import argparse, json, os, subprocess, sys
@@ -101,23 +102,34 @@ else:
         r = subprocess.run([sys.executable, "notis.py", "--sida", text, "--titel", titel, "--lank", LANK, "--prio", str(prio)])
         if r.returncode:
             sys.exit(r.returncode)
-# ---------- extra bevakning: notis vid ändrat läge (bara efter stängning) ----------
-if a.lage == "bekraftat" and BEV:
+# ---------- extra bevakning: notis vid ändrat läge (under dagen preliminärt, efter stängning bekräftat) ----------
+# Jämförs mot läget vid förra stängningen (st["bevakning"], uppdateras bara efter stängning).
+# Samma händelse skickas högst en gång per dag och aktie (st["bevakning_dag"]).
+if BEV:
     forra = st.get("bevakning", {}); rader_b = []
+    dag = st.get("bevakning_dag", {})
+    if dag.get("datum") != idag: dag = {"datum": idag, "skickat": {}}
     for t, b in BEV.items():
         f0 = forra.get(t, {})
         val = "" if t.endswith(".ST") else (" NOK" if t.endswith(".OL") else " DKK")
         bits = []
-        if b["status"] != f0.get("status") and f0: bits.append(f"status {f0.get('status')} → {b['status']}")
-        if b["K"] < 25 and not f0.get("oversald"): bits.append(f"stochastic översåld ({b['K']:.0f})")
-        if b["ny_botten"] and not f0.get("ny_botten"): bits.append(f"ny lägsta stängning på 20 dagar (under {f(b['lagsta20'])})")
-        if b.get("imorgon") and not f0.get("imorgon"): bits.append(f"kan bli köpläge i morgon vid stängning över {f(b['imorgon']['botten'])}")
+        if f0 and b["status"] != f0.get("status"): bits.append(("status:" + b["status"], f"status {f0.get('status')} → {b['status']}"))
+        if b["K"] < 25 and not f0.get("oversald"): bits.append(("oversald", f"stochastic översåld ({b['K']:.0f})"))
+        if b["ny_botten"] and not f0.get("ny_botten"): bits.append(("ny_botten", f"ny lägsta stängning på 20 dagar (under {f(b['lagsta20'])})"))
+        if a.lage == "bekraftat" and b.get("imorgon") and not f0.get("imorgon"):
+            bits.append(("imorgon", f"kan bli köpläge i morgon vid stängning över {f(b['imorgon']['botten'])}"))
+        sk = dag["skickat"].setdefault(t, [])
+        bits = [(k, txt) for k, txt in bits if k not in sk]
         if bits:
-            rader_b.append(f"{b['namn']} ({kort(t)}) {f(b['kurs'])}{val}: " + "; ".join(bits) + f". RSI {b['rsi']:.0f}.")
-        st.setdefault("bevakning", {})[t] = dict(status=b["status"], oversald=b["K"] < 25, ny_botten=b["ny_botten"], imorgon=bool(b.get("imorgon")))
+            sk += [k for k, _ in bits]
+            rader_b.append(f"{b['namn']} ({kort(t)}) {f(b['kurs'])}{val}: " + "; ".join(txt for _, txt in bits) + f". RSI {b['rsi']:.0f}.")
+        if a.lage == "bekraftat":
+            st.setdefault("bevakning", {})[t] = dict(status=b["status"], oversald=b["K"] < 25, ny_botten=b["ny_botten"], imorgon=bool(b.get("imorgon")))
+    st["bevakning_dag"] = dag
     if rader_b:
-        titel4 = "Bevakning: " + ", ".join(x.split(" (")[0] for x in rader_b)
-        text4 = "\n".join(rader_b); print(titel4); print(text4)
+        titel4 = ("Bevakning (prel): " if a.lage == "prel" else "Bevakning: ") + ", ".join(x.split(" (")[0] for x in rader_b)
+        text4 = ("Under dagen, kurser med ca 15 min fördröjning. Bekräftas efter stängning.\n" if a.lage == "prel" else "") + "\n".join(rader_b)
+        print(titel4); print(text4)
         if not a.prov:
             r = subprocess.run([sys.executable, "notis.py", "--sida", text4, "--titel", titel4, "--lank", LANK, "--prio", "3"])
             if r.returncode: sys.exit(r.returncode)
