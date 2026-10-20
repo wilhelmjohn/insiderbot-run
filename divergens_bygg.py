@@ -454,8 +454,25 @@ for ps_ in _pos:
                     antal_kvar=int(ps_["antal"]) - (int(ps_["antal"]) // 2 if halv else 0),
                     resultat_r=(nu_ - e_) / R_ if R_ > 0 else None, notis=ps_.get("notis", {})))
 meta["positioner"] = POS
+# ---------- extra bevakning (divergens_bevaka.json: {"tickers": [...]}) ----------
+try:
+    BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])
+except FileNotFoundError:
+    BEV_T = []
+BEV = {}
+radmap = {r["t"]: r for r in rows}
+for t in BEV_T:
+    if t not in px.columns: continue
+    c, r, K, D, h, hi250 = ind(t)
+    r_ = radmap.get(t)
+    lag20 = float(np.nanmin(c[-21:-1]))
+    BEV[t] = dict(namn=namn(t), status=r_["status"] if r_ else "Ingen signal", not_=r_["not_"] if r_ else "",
+                  kurs=float(c[-1]), K=float(K[-1]), rsi=float(r[-1]), lagsta20=lag20, ny_botten=bool(c[-1] < lag20),
+                  imorgon=r_["imorgon"] if r_ else None, niv=r_["niv"] if r_ else None)
+    if r_: r_["bevakas"] = True
+meta["bevakning"] = BEV
 data = dict(meta=meta, rows=rows)
-json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows} | {"_positioner": POS},
+json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows} | {"_positioner": POS, "_bevakning": BEV},
           open(UT.rsplit(".", 1)[0] + "_status.json", "w"), ensure_ascii=False, indent=1)
 mall = open(__file__.rsplit("/", 1)[0] + "/divergens_mall.html", encoding="utf-8").read()
 open(UT, "w", encoding="utf-8").write(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)))

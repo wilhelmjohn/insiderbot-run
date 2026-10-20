@@ -185,7 +185,7 @@ function card(r){
  el.innerHTML=`<button class="row-head" aria-expanded="false" id="h-${r.t}">
   <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land}</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
   <div class="metrics">${metric("Från 1-årstopp",`<span class="num">${pc(r.dd)}</span>`)}${metric("RSI(9)",`<span class="num">${nf(r.rsi,0)}</span>`)}${metric("Stochastic",`${esc(r.stoch)} <span class="num muted">${nf(r.K,0)}/${nf(r.D,0)}</span>`)}${metric("MACD",esc(r.macd))}</div>
-  ${levels(r)}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
+  ${levels(r)}${r.bevakas?`<div class="flags"><span class="flag neu">★ Extra bevakning</span></div>`:""}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
  </button>${r.nordnet?`<a class="nn" href="${esc(r.nordnet)}" target="_blank" rel="noopener">Öppna i Nordnet ↗</a>`:""}<div class="detail" hidden></div>`;
  const head=el.querySelector(".row-head"),det=el.querySelector(".detail");
  head.onclick=()=>{const open=det.hidden;det.hidden=!open;head.setAttribute("aria-expanded",open);if(open&&!det.dataset.done){fill(det,r);det.dataset.done=1}};
