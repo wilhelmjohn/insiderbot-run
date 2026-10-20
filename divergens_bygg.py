@@ -459,17 +459,26 @@ try:
     BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])
 except FileNotFoundError:
     BEV_T = []
-BEV = {}
+BEV_EXTRA = list(BEV_T)
 radmap = {r["t"]: r for r in rows}
+# alla som Närmar sig bevakas automatiskt, och de som var Närmar sig vid förra stängningen (så att en ändring därifrån syns)
+try:
+    _forra = json.load(open(DATA + "divergens_state.json", encoding="utf-8")).get("bevakning", {})
+except FileNotFoundError:
+    _forra = {}
+BEV_T = list(dict.fromkeys(BEV_T + [r["t"] for r in rows if r["status"] == "Närmar sig"]
+                           + [t for t, v in _forra.items() if v.get("status") == "Närmar sig"]))
+BEV = {}
 for t in BEV_T:
     if t not in px.columns: continue
     c, r, K, D, h, hi250 = ind(t)
     r_ = radmap.get(t)
-    lag20 = float(np.nanmin(c[-21:-1]))
+    lag20 = float(np.nanmin(c[-21:-1])); lag20_g = float(np.nanmin(c[-22:-2]))
     BEV[t] = dict(namn=namn(t), status=r_["status"] if r_ else "Ingen signal", not_=r_["not_"] if r_ else "",
                   kurs=float(c[-1]), K=float(K[-1]), rsi=float(r[-1]), lagsta20=lag20, ny_botten=bool(c[-1] < lag20),
+                  igar=dict(oversald=bool(K[-2] < 25), ny_botten=bool(c[-2] < lag20_g)),
                   imorgon=r_["imorgon"] if r_ else None, niv=r_["niv"] if r_ else None)
-    if r_: r_["bevakas"] = True
+    if r_ and t in BEV_EXTRA: r_["bevakas"] = True
 meta["bevakning"] = BEV
 data = dict(meta=meta, rows=rows)
 json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows} | {"_positioner": POS, "_bevakning": BEV},

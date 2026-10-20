@@ -11,7 +11,7 @@ I morgon kanske (efter stängning, låg prioritet): en av två stängningar öve
   om nästa dag också stänger över bottnen. En notis per botten.
 Sälj (mina positioner i divergens_positioner.json, prio 5): stoppen nådd (kolla att ordern gått), målet 2R (sälj halva,
   flytta stopp till köpkurs), målet 3R (sälj resten), 10 handelsdagar (sälj resten, bara efter stängning). En notis per händelse.
-Bevakning (aktier i divergens_bevaka.json, prio 3): ändrad status, stochastic blir översåld eller ny lägsta stängning
+Bevakning (alla som Närmar sig plus aktier i divergens_bevaka.json, prio 3): ändrad status, stochastic blir översåld eller ny lägsta stängning
   på 20 dagar, jämfört med förra stängningen. Under dagen (preliminärt) och efter stängning; samma händelse högst en gång
   per dag. "Kan bli köpläge i morgon" bara efter stängning.
 Inget skickas annars. Notisen länkar till screenen (artefakten).
@@ -110,10 +110,10 @@ if BEV:
     dag = st.get("bevakning_dag", {})
     if dag.get("datum") != idag: dag = {"datum": idag, "skickat": {}}
     for t, b in BEV.items():
-        f0 = forra.get(t, {})
+        f0 = forra.get(t) or dict(b.get("igar", {}), _ny=True)   # ny i bevakningen: jämför med gårdagens stängning
         val = "" if t.endswith(".ST") else (" NOK" if t.endswith(".OL") else " DKK")
         bits = []
-        if f0 and b["status"] != f0.get("status"): bits.append(("status:" + b["status"], f"status {f0.get('status')} → {b['status']}"))
+        if not f0.get("_ny") and b["status"] != f0.get("status"): bits.append(("status:" + b["status"], f"status {f0.get('status')} → {b['status']}"))
         if b["K"] < 25 and not f0.get("oversald"): bits.append(("oversald", f"stochastic översåld ({b['K']:.0f})"))
         if b["ny_botten"] and not f0.get("ny_botten"): bits.append(("ny_botten", f"ny lägsta stängning på 20 dagar (under {f(b['lagsta20'])})"))
         if a.lage == "bekraftat" and b.get("imorgon") and not f0.get("imorgon"):
