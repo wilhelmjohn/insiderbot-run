@@ -22,7 +22,7 @@ for u in urls:
     if not m or m.group(2) not in MIC: continue
     delar, mic = m.group(1).split("-"), m.group(2)
     for n_ in (1, 2, 3):   # tickern är de sista leden i sluggen
-        if len(delar) <= n_: break
+        if len(delar) < n_: break
         t = "-".join(delar[-n_:]).upper() + MIC[mic]
         if t in kanda and (t not in basta or PRIO[mic] < basta[t][0]):
             basta[t] = (PRIO[mic], u)
