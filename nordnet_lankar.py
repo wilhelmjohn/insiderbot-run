@@ -15,18 +15,23 @@ kanda = set(pd.read_csv("kurser.csv", usecols=["Ticker"]).Ticker)
 for f_ in ("divergens_nordic.csv", "divergens_usa.csv"):
     try: kanda |= set(pd.read_csv(f_, usecols=["Ticker"]).Ticker)
     except FileNotFoundError: pass
-MIC = {"xsto": ".ST", "xosl": ".OL", "xcse": ".CO", "xngm": ".ST", "fnse": ".ST", "sspx": ".ST", "xnas": "", "xnys": "", "arcx": "", "bats": ""}
-PRIO = {"xsto": 0, "xosl": 0, "xcse": 0, "fnse": 1, "xngm": 2, "sspx": 3, "xnas": 0, "xnys": 0, "arcx": 1, "bats": 2}
+# marknadsplats (MIC) -> Yahoo-suffix; okända MIC prövas mot alla suffix och matchas bara mot tickers vi har
+MIC = {"xsto": ".ST", "ssme": ".ST", "fnse": ".ST", "xngm": ".ST", "sspx": ".ST", "xsat": ".ST",
+       "xosl": ".OL", "merk": ".OL", "xoas": ".OL", "xcse": ".CO", "fndk": ".CO",
+       "xnas": "", "xnys": "", "arcx": "", "bats": "", "xase": ""}
+PRIO = {"xsto": 0, "xosl": 0, "xcse": 0, "xnas": 0, "xnys": 0, "ssme": 1, "fnse": 1, "merk": 1, "xoas": 1, "fndk": 1}
 basta = {}
 for u in urls:
     m = re.search(r"/aktier/kurser/(.+)-([a-z]{4})/?$", u)
-    if not m or m.group(2) not in MIC: continue
+    if not m: continue
     delar, mic = m.group(1).split("-"), m.group(2)
+    suffix = [MIC[mic]] if mic in MIC else [".ST", ".OL", ".CO", ""]
     for n_ in (1, 2, 3):   # tickern är de sista leden i sluggen
         if len(delar) < n_: break
-        t = "-".join(delar[-n_:]).upper() + MIC[mic]
-        if t in kanda and (t not in basta or PRIO[mic] < basta[t][0]):
-            basta[t] = (PRIO[mic], u)
+        for suf in suffix:
+            t = "-".join(delar[-n_:]).upper() + suf
+            if t in kanda and (t not in basta or PRIO.get(mic, 5) < basta[t][0]):
+                basta[t] = (PRIO.get(mic, 5), u)
 df = pd.DataFrame(sorted((t, u) for t, (_, u) in basta.items()), columns=["Ticker", "Url"])
 df.to_csv("nordnet_lankar.csv", index=False)
 print(f"Matchade {len(df)} av {len(kanda)} tickers")
