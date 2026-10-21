@@ -23,16 +23,16 @@ def wiki(url, kolumner):
     r = requests.get(url, headers=H, timeout=30); r.raise_for_status()
     tabeller = pd.read_html(io.StringIO(r.text))
     print(f"  {url}: {len(r.text)} tecken, {len(tabeller)} tabeller, storlekar {[len(t) for t in tabeller][:12]}")
-    for t in tabeller:
-        if isinstance(t.columns, pd.MultiIndex): t.columns = [" ".join(map(str, c)) for c in t.columns]
+    basta = (0, None, None)
+    for n_, t in enumerate(tabeller):
         if not 25 <= len(t) <= 120: continue
         for c in t.columns:
-            if any(k.lower() in str(c).lower() for k in kolumner):
-                v = [re.sub(r"[^A-Z.\-]", "", str(x).split()[-1].upper()).replace(".", "-") for x in t[c].dropna()]
-                v = [x for x in v if 1 <= len(x) <= 6]
-                print(f"    kandidat: kolumn {c!r}, {len(t)} rader, {len(v)} giltiga, t.ex. {v[:4]}")
-                if len(v) >= 0.8 * len(t):
-                    return v
+            v = [str(x).strip() for x in t[c].dropna()]
+            ok = [x.replace(".", "-") for x in v if re.fullmatch(r"[A-Z]{1,5}(\.[A-Z])?", x)]
+            andel = len(ok) / max(len(t), 1)
+            if andel > basta[0]: basta = (andel, ok, f"tabell {n_}, kolumn {c!r}, {len(t)} rader")
+    print(f"    bästa: {basta[2]}, andel {basta[0]:.2f}, t.ex. {(basta[1] or [])[:5]}")
+    if basta[0] >= 0.9: return basta[1]
     raise ValueError("ingen tabell")
 
 
