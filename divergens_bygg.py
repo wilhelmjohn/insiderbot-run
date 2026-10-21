@@ -46,7 +46,7 @@ NORD_AKTIER = [t for t in nord_px.columns if t.endswith((".OL", ".CO")) and t no
 USA = pd.read_csv(DATA + "divergens_usa.csv", parse_dates=["Datum"]) if os.path.exists(DATA + "divergens_usa.csv") else k.iloc[:0]
 USA_INFO = pd.read_csv(DATA + "divergens_usa_info.csv").set_index("Ticker") if os.path.exists(DATA + "divergens_usa_info.csv") else pd.DataFrame(columns=["Namn", "Sektor", "Bors", "Index"])
 usa_px = USA.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index() if len(USA) else pd.DataFrame()
-USA_AKTIER = [t for t in usa_px.columns if not t.startswith("^") and "=" not in t and t in USA_INFO.index
+USA_AKTIER = [t for t in usa_px.columns if not t.startswith("^") and "=" not in t and t in USA_INFO.index and t != "GOOG"   # GOOGL räcker
               and usa_px[t].last_valid_index() is not None and usa_px[t].last_valid_index() >= usa_px.index[-1] - pd.Timedelta(days=10)
               and usa_px[t].notna().sum() >= 260]
 k = pd.concat([k, NORD[NORD.Ticker.isin(NORD_AKTIER)], USA[USA.Ticker.isin(USA_AKTIER)]], ignore_index=True)
