@@ -10,7 +10,7 @@ import pandas as pd, requests, yfinance as yf
 KURSER, INFO = Path("divergens_usa.csv"), Path("divergens_usa_info.csv")
 EXTRA = ["^GSPC", "^NDX", "^DJI", "USDSEK=X"]
 START = "2016-01-01"
-H = {"User-Agent": "Mozilla/5.0 (insiderbot; privat bevakning)"}
+H = {"User-Agent": "insiderbot/1.0 (https://github.com/wilhelmjohn/insiderbot-run; privat bevakning)"}
 
 RESERV_NDX = """AAPL MSFT NVDA AMZN META GOOGL GOOG AVGO TSLA COST NFLX TMUS ASML CSCO AMD PEP LIN ADBE ISRG INTU QCOM TXN AMGN
 BKNG CMCSA HON AMAT PDD ARM GILD VRTX PANW ADP SBUX MU LRCX ADI MELI KLAC INTC CRWD MDLZ CTAS APP PLTR MSTR REGN SNPS CDNS ORLY
@@ -21,7 +21,9 @@ RESERV_DJI = """AAPL AMGN AMZN AXP BA CAT CRM CSCO CVX DIS GS HD HON IBM JNJ JPM
 
 def wiki(url, kolumner):
     r = requests.get(url, headers=H, timeout=30); r.raise_for_status()
-    for t in pd.read_html(io.StringIO(r.text)):
+    tabeller = pd.read_html(io.StringIO(r.text))
+    print(f"  {url}: {len(r.text)} tecken, {len(tabeller)} tabeller, storlekar {[len(t) for t in tabeller][:12]}")
+    for t in tabeller:
         if isinstance(t.columns, pd.MultiIndex): t.columns = [" ".join(map(str, c)) for c in t.columns]
         for c in t.columns:
             if any(k.lower() in str(c).lower() for k in kolumner) and 25 <= len(t) <= 120:
