@@ -12,10 +12,11 @@ for n in range(1, 30):
     urls += re.findall(r"<loc>([^<]+)</loc>", r.text); time.sleep(0.5)
 print(f"Nordnet sitemap: {len(urls)} aktiesidor")
 kanda = set(pd.read_csv("kurser.csv", usecols=["Ticker"]).Ticker)
-try: kanda |= set(pd.read_csv("divergens_nordic.csv", usecols=["Ticker"]).Ticker)
-except FileNotFoundError: pass
-MIC = {"xsto": ".ST", "xosl": ".OL", "xcse": ".CO", "xngm": ".ST", "fnse": ".ST", "sspx": ".ST"}
-PRIO = {"xsto": 0, "xosl": 0, "xcse": 0, "fnse": 1, "xngm": 2, "sspx": 3}
+for f_ in ("divergens_nordic.csv", "divergens_usa.csv"):
+    try: kanda |= set(pd.read_csv(f_, usecols=["Ticker"]).Ticker)
+    except FileNotFoundError: pass
+MIC = {"xsto": ".ST", "xosl": ".OL", "xcse": ".CO", "xngm": ".ST", "fnse": ".ST", "sspx": ".ST", "xnas": "", "xnys": "", "arcx": "", "bats": ""}
+PRIO = {"xsto": 0, "xosl": 0, "xcse": 0, "fnse": 1, "xngm": 2, "sspx": 3, "xnas": 0, "xnys": 0, "arcx": 1, "bats": 2}
 basta = {}
 for u in urls:
     m = re.search(r"/aktier/kurser/(.+)-([a-z]{4})/?$", u)
