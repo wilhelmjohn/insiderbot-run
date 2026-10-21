@@ -344,21 +344,21 @@ def _uppf_signaler(t, c, sigs):
             if not np.isfinite(x): continue
             ds = dates[i + d].strftime("%Y-%m-%d")
             if not half and x >= e + 2 * Rk:
-                res += 0.5 * 2; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "2R, halva såld"])
+                res += 0.5 * 2; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "halva såld vid 2R", float(e + 2 * Rk)])
             if half and x >= e + 3 * Rk:
-                res += kvar * 3; kvar = 0; slut = i + d; hand.append([d, ds, "3R, resten såld"]); break
+                res += kvar * 3; kvar = 0; slut = i + d; hand.append([d, ds, "resten såld vid 3R", float(e + 3 * Rk)]); break
             if x <= stop:
                 res += kvar * (x - e) / Rk; kvar = 0; slut = i + d
-                hand.append([d, ds, "stopp på köpkursen" if half else "stopp"]); break
+                hand.append([d, ds, "resten stoppad på köpkursen" if half else "stoppad, allt sålt", float(x)]); break
             if d == 10:
-                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, "tiden ute, såld"])
+                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, ("resten" if half else "allt") + " sålt efter tio dagar", float(x)])
         j = slut if slut is not None else len(c) - 1
         upptagen = j if slut is not None else len(c)
         if kvar > 0: res += kvar * (c[j] - e) / Rk
         insats = RISK_KR * e / Rk
         idx_kr = insats * (I[j] / I[i] - 1) if np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
         UPPF.append(dict(t=t, namn=namn(t), land=LAND(t), valuta=VALUTA[LAND(t)], datum=dates[i].strftime("%Y-%m-%d"), kurs=float(e),
-                         stopp=float(e - Rk), nu=float(c[j]), r=float(res), kr=round(RISK_KR * res), idx_kr=None if idx_kr is None else round(idx_kr),
+                         stopp=float(e - Rk), m2=float(e + 2 * Rk), m3=float(e + 3 * Rk), halv=half, nu=float(c[j]), r=float(res), kr=round(RISK_KR * res), idx_kr=None if idx_kr is None else round(idx_kr),
                          insats=round(insats), oppen=slut is None, dagar=int(j - i), handelser=hand))
 
 
