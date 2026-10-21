@@ -138,6 +138,12 @@ salj["Belopp"] = salj.Volym * salj.Pris
 nyh = pd.read_csv(DATA + "nyheter.csv", parse_dates=["Publicerat"])
 nyh["Ticker"] = nyh.Bolag_id.map(bid2t)
 rk = pd.read_csv(DATA + "rapportkalender.csv", parse_dates=["Datum"])
+# fler rapportdatum: yfinance för hela universumet (divergens_rapportdatum.csv) och manuella (rapport_manuell.csv)
+for _f in ("divergens_rapportdatum.csv", "rapport_manuell.csv"):
+    if os.path.exists(DATA + _f):
+        rk = pd.concat([rk, pd.read_csv(DATA + _f, parse_dates=["Datum"])[["Ticker", "Datum"]]], ignore_index=True)
+rk = rk.drop_duplicates(["Ticker", "Datum"])
+RAPPORT_DAGAR = 14   # kalenderdagar framåt (ca 10 handelsdagar = affärens längd)
 bl = pd.read_csv(DATA + "blankning.csv")
 norm = lambda s: re.sub(r"[^a-z0-9]", "", re.sub(r"\(publ\.?\)|\bab\b|\baktiebolag(et)?\b|\bgroup\b|\bholding\b", "", str(s).lower()))
 bl_map = {norm(r.Emittent): r for r in bl.itertuples()}
@@ -372,10 +378,18 @@ for t in univ:
         if np.isfinite(I[p0]) and np.isfinite(I[-1]) and I[p0] > 0:
             rs = float((now / c[p0] - 1) - (I[-1] / I[p0] - 1))
     svag_rs = rs is not None and rs < RS_GRANS and not MARKNAD[land]["filter"]
+    rap_nara = rk[(rk.Ticker == t) & (rk.Datum >= idag_ts.normalize()) & (rk.Datum <= idag_ts + pd.Timedelta(days=RAPPORT_DAGAR))].Datum.min()
+    if status == "Köpläge" and pd.notna(rap_nara):
+        status = "Avvakta"
+        note = (f"Rapport {rap_nara:%-d/%-m} under affärens tid. Stoppen skyddar inte mot ett kursras på rapportdagen, "
+                "och i testet var utfallen dubbelt så spridda. Köp efter rapporten om signalen står kvar")
     if status == "Köpläge" and svag_rs:
         status = "Avvakta"
         note = (f"Aktien har gått {abs(100*rs):.0f} procentenheter sämre än index sedan första bottnen medan börsen inte är bredt svag. "
                 "I testet gav det läget förlust i snitt")
+    if imorgon and pd.notna(rap_nara):
+        imorgon = None
+        note = f"Kan bli signal i morgon, men rapport {rap_nara:%-d/%-m} ligger under affärens tid (blir Avvakta)"
     if imorgon and svag_rs:
         imorgon = None
         note = f"En av två stängningar över bottnen klar, men aktien har gått {abs(100*rs):.0f} procentenheter sämre än index sedan första bottnen (blir Avvakta)"
@@ -401,7 +415,7 @@ for t in univ:
                vd=any(vdcfo(a["roll"]) for a in aff if a["typ"] == "Köp"), aff=aff[:12])
     b = bl_map.get(norm(sek.longName.get(t, ""))) if LAND(t) == "SE" else None
     blank = dict(niva=float(b.Niva), f20=float(b.Forandring_20d)) if b is not None else None
-    rap = rk[(rk.Ticker == t) & (rk.Datum >= idag_ts.normalize()) & (rk.Datum <= idag_ts + pd.Timedelta(days=14))]
+    rap = rk[(rk.Ticker == t) & (rk.Datum >= idag_ts.normalize()) & (rk.Datum <= idag_ts + pd.Timedelta(days=RAPPORT_DAGAR))]
     rapport = rap.Datum.min().strftime("%Y-%m-%d") if len(rap) else None
     n30 = nyh[(nyh.Ticker == t) & (nyh.Publicerat >= idag_ts - pd.Timedelta(days=30))].sort_values("Publicerat", ascending=False)
     nyheter = [dict(d=x.Publicerat.strftime("%Y-%m-%d"), typ=x.Typ, rubrik=x.Rubrik) for x in n30.head(5).itertuples()]

@@ -31,19 +31,20 @@ jobs:
         with:
           path: _kod
           persist-credentials: false
-      - run: cp _kod/divergens_kurser.py _kod/divergens_usa.py _kod/nordnet_lankar.py .
+      - run: cp _kod/divergens_kurser.py _kod/divergens_usa.py _kod/nordnet_lankar.py _kod/divergens_rapportdatum.py .
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install pandas yfinance requests lxml
       - run: python -u divergens_kurser.py 2>&1 | tee divergens_kurser_logg.txt
       - run: python -u divergens_usa.py 2>&1 | tee divergens_usa_logg.txt
+      - run: python -u divergens_rapportdatum.py || echo "Rapportdatum misslyckades"
       - run: python -u nordnet_lankar.py || echo "Nordnet-länkar misslyckades"
       - name: Spara
         if: always()
         run: |
           git config user.name "insiderbot"
           git config user.email "insiderbot@users.noreply.github.com"
-          for f in divergens_nordic.csv divergens_nordic_info.csv divergens_kurser_logg.txt nordnet_lankar.csv divergens_usa.csv divergens_usa_info.csv divergens_usa_logg.txt; do git add "$f" || true; done
+          for f in divergens_nordic.csv divergens_nordic_info.csv divergens_kurser_logg.txt nordnet_lankar.csv divergens_usa.csv divergens_usa_info.csv divergens_usa_logg.txt divergens_rapportdatum.csv; do git add "$f" || true; done
           git diff --cached --quiet || git commit -m "divergens: nordiska kurser $(date -u +%F)"
           for i in 1 2 3 4; do
             if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
