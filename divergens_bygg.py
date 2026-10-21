@@ -29,6 +29,7 @@ if "--live" in sys.argv:
         if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
             print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
 RISK_KR = 500
+VALUTA_AVG = 0.005               # Nordnets valutaväxlingsavgift, dras vid köp och sälj i aktier som inte handlas i SEK
 UPPF_START = "2026-10-12"         # uppföljning: alla signaler från och med den här dagen, oavsett status
 MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
 EXTRA = ["LYKO-A.ST"]
@@ -334,27 +335,30 @@ def _uppf_signaler(t, c, sigs):
     Index räknas med samma insats under samma dagar. En ny signal i samma aktie räknas först när förra affären är avslutad."""
     upptagen = -1
     I = INDEX[LAND(t)]
+    avg = VALUTA_AVG if LAND(t) != "SE" else 0.0
     for s in sigs:
         if dates[s["i"]] < pd.Timestamp(UPPF_START) or s["i"] <= upptagen: continue
         i, e = s["i"], s["e"]; Rk = e * s["risk"]; stop = e - Rk
         kvar, res, half, slut, hand = 1.0, 0.0, False, None, []
+        avg_r = avg * e / Rk                                  # växlingsavgift vid köp, i R
         for d in range(1, 11):
             if i + d >= len(c): break
             x = c[i + d]
             if not np.isfinite(x): continue
             ds = dates[i + d].strftime("%Y-%m-%d")
             if not half and x >= e + 2 * Rk:
-                res += 0.5 * 2; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "halva såld vid 2R", float(e + 2 * Rk)])
+                res += 0.5 * 2; avg_r += 0.5 * avg * (e + 2 * Rk) / Rk; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "halva såld vid 2R", float(e + 2 * Rk)])
             if half and x >= e + 3 * Rk:
-                res += kvar * 3; kvar = 0; slut = i + d; hand.append([d, ds, "resten såld vid 3R", float(e + 3 * Rk)]); break
+                res += kvar * 3; avg_r += kvar * avg * (e + 3 * Rk) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, "resten såld vid 3R", float(e + 3 * Rk)]); break
             if x <= stop:
-                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d
+                res += kvar * (x - e) / Rk; avg_r += kvar * avg * x / Rk; kvar = 0; slut = i + d
                 hand.append([d, ds, "resten stoppad på köpkursen" if half else "stoppad, allt sålt", float(x)]); break
             if d == 10:
-                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, ("resten" if half else "allt") + " sålt efter tio dagar", float(x)])
+                res += kvar * (x - e) / Rk; avg_r += kvar * avg * x / Rk; kvar = 0; slut = i + d; hand.append([d, ds, ("resten" if half else "allt") + " sålt efter tio dagar", float(x)])
         j = slut if slut is not None else len(c) - 1
         upptagen = j if slut is not None else len(c)
-        if kvar > 0: res += kvar * (c[j] - e) / Rk
+        if kvar > 0: res += kvar * (c[j] - e) / Rk; avg_r += kvar * avg * c[j] / Rk   # öppen: avgiften vid en försäljning nu
+        res -= avg_r
         insats = RISK_KR * e / Rk
         idx_kr = insats * (I[j] / I[i] - 1) if np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
         UPPF.append(dict(t=t, namn=namn(t), land=LAND(t), valuta=VALUTA[LAND(t)], datum=dates[i].strftime("%Y-%m-%d"), kurs=float(e),
@@ -537,8 +541,9 @@ for ps_ in _pos:
     kvar = 0 if ps_.get("stangd") else antal_ - salt
     halv = bool(salt) or bool(ps_.get("notis", {}).get("m2"))
     if not salj_ and ps_.get("notis", {}).get("m2"): kvar = antal_ - antal_ // 2
-    real = sum(int(x["antal"]) * (float(x["kurs"]) - e_) for x in salj_) * fx_
-    oreal = kvar * (nu_ - e_) * fx_
+    avg_ = VALUTA_AVG if LAND(t_) != "SE" else 0.0     # växlingsavgift vid köp och sälj
+    real = sum(int(x["antal"]) * ((float(x["kurs"]) - e_) - avg_ * (float(x["kurs"]) + e_)) for x in salj_) * fx_
+    oreal = kvar * ((nu_ - e_) - avg_ * (nu_ + e_)) * fx_
     risk = antal_ * R_ * fx_
     dagar = int((c_.index > pd.Timestamp(ps_["datum"])).sum())
     stangd = kvar <= 0
@@ -550,9 +555,9 @@ for ps_ in _pos:
     for d_ in c_.index[c_.index >= pd.Timestamp(ps_["datum"])]:
         ds = d_.strftime("%Y-%m-%d")
         sald = sum(int(x["antal"]) for x in salj_ if x["datum"] <= ds)
-        rl = sum(int(x["antal"]) * (float(x["kurs"]) - e_) for x in salj_ if x["datum"] <= ds)
+        rl = sum(int(x["antal"]) * ((float(x["kurs"]) - e_) - avg_ * (float(x["kurs"]) + e_)) for x in salj_ if x["datum"] <= ds)
         hav = 0 if (stangd and ds >= (PORTF[-1]["slut"] or ds)) else antal_ - sald
-        _kurva[ds] = _kurva.get(ds, 0) + (rl + hav * (float(c_[d_]) - e_)) * fx_
+        _kurva[ds] = _kurva.get(ds, 0) + (rl + hav * ((float(c_[d_]) - e_) - avg_ * (float(c_[d_]) + e_))) * fx_
     if stangd: continue
     POS.append(dict(ticker=t_, namn=namn(t_), nordnet=NORDNET.get(t_), land=LAND(t_), valuta=VALUTA[LAND(t_)],
                     antal=antal_, kurs=e_, datum=ps_["datum"], nu=nu_, stopp=e_ if halv else stp, stopp_ursp=stp,
