@@ -12,11 +12,13 @@ EXTRA = ["^GSPC", "^NDX", "^DJI", "USDSEK=X"]
 START = "2016-01-01"
 H = {"User-Agent": "insiderbot/1.0 (https://github.com/wilhelmjohn/insiderbot-run; privat bevakning)"}
 
-RESERV_NDX = """AAPL MSFT NVDA AMZN META GOOGL GOOG AVGO TSLA COST NFLX TMUS ASML CSCO AMD PEP LIN ADBE ISRG INTU QCOM TXN AMGN
-BKNG CMCSA HON AMAT PDD ARM GILD VRTX PANW ADP SBUX MU LRCX ADI MELI KLAC INTC CRWD MDLZ CTAS APP PLTR MSTR REGN SNPS CDNS ORLY
-MAR CEG FTNT PYPL DASH ASTS ABNB WDAY ADSK CSX ROP AEP CHTR MNST PCAR NXPI CPRT TTWO PAYX FAST ROST KDP DDOG AZN EA BKR XEL VRSK
-EXC CTSH FANG CCEP ZS TEAM KHC GEHC IDXX LULU ODFL TTD CSGP DXCM ANSS CDW ON BIIB GFS MRVL WBD MDB ARM""".split()
-RESERV_DJI = """AAPL AMGN AMZN AXP BA CAT CRM CSCO CVX DIS GS HD HON IBM JNJ JPM KO MCD MMM MRK MSFT NKE NVDA PG SHW TRV UNH V VZ WMT""".split()
+# Reservlistor (Wikipedia 2026-10-21). Används om hämtningen av indexlistorna misslyckas.
+RESERV_NDX = """ADBE AMD ABNB ALNY GOOGL GOOG AMZN AEP AMGN ADI AAPL AMAT APP ARM ASML ALAB ADSK ADP AXON BKR BKNG AVGO CDNS CTAS
+CSCO CCEP CMCSA CEG CPRT CRWV COST CRWD CSX DDOG DXCM FANG DASH EA EXC FAST FER FTNT GEHC GILD HON IDXX INTC INTU ISRG KDP KLAC
+KHC LRCX LIN LITE MAR MRVL MELI META MCHP MU MSFT MSTR MDLZ MPWR MNST NBIS NFLX NVDA NXPI ORLY ODFL PCAR PLTR PANW PAYX PYPL PDD
+PEP QCOM REGN RKLB ROP ROST SNDK STX SHOP SBUX SNPS TMUS TTWO TER TSLA TXN TRI VRTX WMT WBD WDC WDAY XEL""".split()
+RESERV_DJI = """MMM GOOGL AXP AMGN AMZN AAPL BA CAT CVX CSCO KO DIS GS HD HON IBM JNJ JPM MCD MRK MSFT NKE NVDA PG CRM SHW TRV UNH V
+WMT""".split()
 
 
 def wiki(url, kolumner):
@@ -41,9 +43,9 @@ farsk = len(info) and (pd.Timestamp.today() - pd.to_datetime(info.Hamtad).max())
 forra_ndx = info.loc[info.Index.str.contains("NDX", na=False), "Ticker"].tolist() if len(info) else []
 forra_dji = info.loc[info.Index.str.contains("DJI", na=False), "Ticker"].tolist() if len(info) else []
 try: ndx = wiki("https://en.wikipedia.org/wiki/Nasdaq-100", ["Ticker", "Symbol"])
-except Exception as e: print("Nasdaq-100: Wikipedia misslyckades,", e); ndx = forra_ndx or RESERV_NDX
-try: dji = wiki("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ["Symbol", "Ticker"])
-except Exception as e: print("Dow Jones: Wikipedia misslyckades,", e); dji = forra_dji or RESERV_DJI
+except Exception as e: print("Nasdaq-100: Wikipedia misslyckades,", e); ndx = RESERV_NDX
+try: dji = wiki("https://en.wikipedia.org/wiki/List_of_Dow_Jones_Industrial_Average_companies", ["Symbol", "Ticker"])
+except Exception as e: print("Dow Jones: Wikipedia misslyckades,", e); dji = RESERV_DJI
 ndx, dji = list(dict.fromkeys(ndx)), list(dict.fromkeys(dji))
 TICKERS = list(dict.fromkeys(ndx + dji))
 print(f"Nasdaq-100: {len(ndx)}, Dow Jones: {len(dji)}, totalt {len(TICKERS)}")
