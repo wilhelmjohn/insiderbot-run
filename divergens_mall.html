@@ -53,7 +53,7 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .pfsum .lbl{font-size:12px;color:var(--faint)}.pfsum .big{font:600 18px var(--f-body)}
 .pfchart{width:100%;height:110px;display:block;margin:4px 0 8px}
 .pftab{width:100%;border-collapse:collapse;font-size:13px}.pftab th{font-weight:500;color:var(--faint);text-align:right;padding:4px 6px}
-.pftab td{text-align:right;padding:6px;border-top:1px solid var(--line)}.pftab th:first-child,.pftab td:first-child{text-align:left}
+.pftab td{text-align:right;padding:6px;border-top:1px solid var(--line)}.pftab td.num>b,.pftab td.num>span{white-space:nowrap}.pftab th:first-child,.pftab td:first-child{text-align:left}
 .posbox+.posbox{margin-top:10px}
 @media (max-width:560px){.pfsum{grid-template-columns:repeat(2,minmax(0,1fr))}.pftab .hm{display:none}}
 .posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
@@ -177,19 +177,25 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
   return `<div class="p"><div><b>${esc(p.namn)}</b> <span class="tk">${esc(p.ticker.replace(/\.(ST|OL|CO)$/,""))}</span>${p.nordnet?` <a class="nn in" href="${esc(p.nordnet)}" target="_blank" rel="noopener">Nordnet ↗</a>`:""}<div class="levels num"><span><b>Köpt</b>${p.antal_kvar} st à ${nf(p.kurs)}${v} · ${dd(p.datum)}</span><span><b>Stopp</b>${nf(p.stopp)}</span><span><b>2R / 3R</b>${nf(p.m2)} / ${nf(p.m3)}</span><span><b>Dagar kvar</b>${p.dagar_kvar}</span></div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(p.nu)}</div><div class="${res>=0?"buy":"sell"}">${pc(res,1)} · ${p.resultat_r==null?"–":(p.resultat_r>=0?"+":"−")+nf(Math.abs(p.resultat_r),1)+"R"}</div></div><div class="nx">${nx}</div></div>`}).join("")})();
 (function(){const F=M.portfolj;if(!F)return;const el=document.getElementById("pf");el.hidden=false;
- const kr=x=>(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",tot=F.real+F.oreal;
+ const kr=x=>(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",tot=F.real+F.oreal,ins=F.insats||F.affarer.reduce((s,a)=>s+a.insats,0);
+ const pp=x=>x==null?"–":(x>=0?"+":"−")+nf(Math.abs(100*x),1)+" %",cl=x=>x==null?"":x>=0?"buy":"sell";
+ const ik=F.idx_kr,diff=ik==null||!ins?null:(tot-ik)/ins;
  const st=F.affarer.filter(a=>a.stangd),vin=st.filter(a=>a.real>0).length;
- const k=[[F.start,0],...F.kurva],ys=[0,...k.map(x=>x[1])],mn=Math.min(...ys),mx=Math.max(...ys),W=600,H=110,sp=(mx-mn)||1;
+ const k=[[F.start,0],...F.kurva],ikm=Object.fromEntries(F.ikurva||[]),ki=k.map(x=>x[0]===F.start&&!(x[0] in ikm)?0:ikm[x[0]]);
+ const ys=[0,...k.map(x=>x[1]),...ki.filter(v=>v!=null)],mn=Math.min(...ys),mx=Math.max(...ys),W=600,H=110,sp=(mx-mn)||1;
  const X=i=>k.length>1?i/(k.length-1)*W:W/2,Y=v=>H-6-(v-mn)/sp*(H-12);
  const path=k.map((x,i)=>(i?"L":"M")+X(i).toFixed(1)+","+Y(x[1]).toFixed(1)).join("");
- const svg=k.length>1?`<svg class="pfchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Portföljens resultat över tid"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-dasharray="4 4"/><path d="${path}" fill="none" stroke="${tot>=0?"var(--buy)":"var(--sell)"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:"";
- const rad=a=>{const v=a.land==="SE"?"":" "+a.valuta;const sald=a.salj.map(s=>`${s.antal} à ${nf(s.kurs)}`).join(", ");
+ const ipath=ki.every(v=>v!=null)?ki.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+","+Y(v).toFixed(1)).join(""):"";
+ const svg=k.length>1?`<div class="legend"><span><i style="border-color:${tot>=0?"var(--buy)":"var(--avoid)"}"></i>Affärerna</span>${ipath?`<span><i class="dash" style="border-color:var(--faint)"></i>Samma belopp i index</span>`:""}</div><svg class="pfchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Portföljens resultat över tid jämfört med index"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-dasharray="4 4"/>${ipath?`<path d="${ipath}" fill="none" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/>`:""}<path d="${path}" fill="none" stroke="${tot>=0?"var(--buy)":"var(--avoid)"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:"";
+ const rad=a=>{const v=a.land==="SE"?"":" "+a.valuta;const sald=a.salj.map(s=>`${s.antal} à ${nf(s.kurs)}`).join(", ");const res=a.real+a.oreal;
   return `<tr><td><b>${esc(a.namn)}</b><div class="tk">${dd(a.datum)} · ${a.antal} st à ${nf(a.kurs)}${v}${sald?` · sålt ${sald}`:""}${a.stangd?" · stängd":` · ${a.kvar} kvar, nu ${nf(a.nu)}`}</div></td>
-  <td class="hm num">${kr(a.real)}</td><td class="hm num">${a.stangd?"–":kr(a.oreal)}</td><td class="num ${a.real+a.oreal>=0?"buy":"sell"}"><b>${kr(a.real+a.oreal)}</b><div>${a.r==null?"":(a.r>=0?"+":"−")+nf(Math.abs(a.r),2)+"R"}</div></td></tr>`};
+  <td class="num ${cl(res)}"><b>${pp(a.pct)}</b><div>${kr(res)}${a.r==null?"":" · "+(a.r>=0?"+":"−")+nf(Math.abs(a.r),2)+"R"}</div></td>
+  <td class="num"><span class="${cl(a.idx_pct)}">${pp(a.idx_pct)}</span><div class="tk">${esc(a.idx_namn||"")}</div></td>
+  <td class="hm num ${cl(a.idx_pct==null?null:a.pct-a.idx_pct)}">${a.idx_pct==null?"–":(a.pct-a.idx_pct>=0?"+":"−")+nf(Math.abs(100*(a.pct-a.idx_pct)),1)+" p.e."}</td></tr>`};
  el.innerHTML=`<h2>Teoretisk portfölj sedan ${dd(F.start)}</h2>
- <div class="pfsum num"><div><div class="lbl">Totalt</div><div class="big ${tot>=0?"buy":"sell"}">${kr(tot)}</div></div><div><div class="lbl">Realiserat</div><div class="big">${kr(F.real)}</div></div><div><div class="lbl">Orealiserat</div><div class="big">${kr(F.oreal)}</div></div><div><div class="lbl">Affärer</div><div class="big">${F.affarer.length}</div><div class="lbl">${st.length?`${vin} av ${st.length} stängda med vinst`:"ingen stängd än"}</div></div></div>
- ${svg}<table class="pftab"><thead><tr><th>Affär</th><th class="hm">Realiserat</th><th class="hm">Orealiserat</th><th>Resultat</th></tr></thead><tbody>${F.affarer.map(rad).join("")}</tbody></table>
- <p class="tk" style="margin:8px 0 0">Bara de affärer du själv valt och rapporterat. Kronor i SEK (dagens växelkurs), R = resultat delat med risken vid köpet. Kurvan visar resultatet per dag, stängningskurser.</p>`})();
+ <div class="pfsum num"><div><div class="lbl">Totalt</div><div class="big ${cl(tot)}">${pp(ins?tot/ins:null)}</div><div class="lbl">${kr(tot)}</div></div><div><div class="lbl">Samma belopp i index</div><div class="big ${cl(ik)}">${ik==null?"–":pp(ik/ins)}</div><div class="lbl">${ik==null?"":kr(ik)}</div></div><div><div class="lbl">Mot index</div><div class="big ${cl(diff)}">${diff==null?"–":(diff>=0?"+":"−")+nf(Math.abs(100*diff),1)+" p.e."}</div><div class="lbl">${ik==null?"":kr(tot-ik)}</div></div><div><div class="lbl">Affärer</div><div class="big">${F.affarer.length}</div><div class="lbl">${st.length?`${vin} av ${st.length} stängda med vinst`:"ingen stängd än"}</div></div></div>
+ ${svg}<table class="pftab"><thead><tr><th>Affär</th><th>Resultat</th><th>Index</th><th class="hm">Mot index</th></tr></thead><tbody>${F.affarer.map(rad).join("")}</tbody></table>
+ <p class="tk" style="margin:8px 0 0">Bara de affärer du själv valt och rapporterat. Resultat i procent av insatsen och i SEK (dagens växelkurs), R = resultat delat med risken vid köpet. Index: samma belopp i börsens index (OMXSPI, OSEBX, OMXC25 eller S&amp;P 500) köpt vid köpdagens stängning och sålt i samma andelar på säljdagarna. Kurvan visar resultatet per dag, stängningskurser.</p>`})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");

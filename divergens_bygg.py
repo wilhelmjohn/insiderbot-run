@@ -488,7 +488,12 @@ try:
     _pos = json.load(open(DATA + "divergens_positioner.json", encoding="utf-8")).get("positioner", [])
 except FileNotFoundError:
     _pos = []
-_kurva = {}
+_kurva, _ikurva = {}, {}
+def _idx_at(l_, ds):
+    """Indexets värde vid stängning dagen ds (eller närmast före)."""
+    i_ = px.index.searchsorted(pd.Timestamp(ds), side="right") - 1
+    v_ = float(INDEX[l_][max(i_, 0)]) if l_ in INDEX else float("nan")
+    return v_ if v_ == v_ and v_ > 0 else None
 for ps_ in _pos:
     t_ = ps_["ticker"]
     if t_ not in px.columns: continue
@@ -503,9 +508,17 @@ for ps_ in _pos:
     risk = antal_ * R_ * fx_
     dagar = int((c_.index > pd.Timestamp(ps_["datum"])).sum())
     stangd = kvar <= 0
+    # samma belopp i landets index: köp vid köpdagens stängning, sälj samma andel vid varje säljdag
+    insats_ = antal_ * e_ * fx_; l0 = _idx_at(LAND(t_), ps_["datum"]); idx_kr = None
+    if l0:
+        idx_kr = sum(int(x["antal"]) / antal_ * insats_ * ((_idx_at(LAND(t_), x["datum"]) or l0) / l0 - 1) for x in salj_)
+        idx_kr += kvar / antal_ * insats_ * (float(INDEX[LAND(t_)][-1]) / l0 - 1)
     PORTF.append(dict(ticker=t_, namn=namn(t_), land=LAND(t_), valuta=VALUTA[LAND(t_)], datum=ps_["datum"], antal=antal_, kvar=kvar, kurs=e_, nu=nu_,
                       salj=salj_, real=round(real), oreal=round(oreal), insats=round(antal_ * e_ * fx_), risk=round(risk),
                       r=(real + oreal) / risk if risk > 0 else None, stangd=stangd,
+                      pct=(real + oreal) / insats_ if insats_ > 0 else None,
+                      idx_kr=round(idx_kr) if idx_kr is not None else None,
+                      idx_pct=idx_kr / insats_ if idx_kr is not None and insats_ > 0 else None, idx_namn=MARKNAD[LAND(t_)]["namn"],
                       slut=max([x["datum"] for x in salj_], default=None) if stangd else None))
     # daglig kurva: realiserat t.o.m. dagen + innehav * (stängning - köpkurs)
     for d_ in c_.index[c_.index >= pd.Timestamp(ps_["datum"])]:
@@ -514,13 +527,18 @@ for ps_ in _pos:
         rl = sum(int(x["antal"]) * (float(x["kurs"]) - e_) for x in salj_ if x["datum"] <= ds)
         hav = 0 if (stangd and ds >= (PORTF[-1]["slut"] or ds)) else antal_ - sald
         _kurva[ds] = _kurva.get(ds, 0) + (rl + hav * (float(c_[d_]) - e_)) * fx_
+        if l0:
+            irl = sum(int(x["antal"]) / antal_ * insats_ * ((_idx_at(LAND(t_), x["datum"]) or l0) / l0 - 1) for x in salj_ if x["datum"] <= ds)
+            _ikurva[ds] = _ikurva.get(ds, 0) + irl + hav / antal_ * insats_ * ((_idx_at(LAND(t_), ds) or l0) / l0 - 1)
     if stangd: continue
     POS.append(dict(ticker=t_, namn=namn(t_), nordnet=NORDNET.get(t_), land=LAND(t_), valuta=VALUTA[LAND(t_)],
                     antal=antal_, kurs=e_, datum=ps_["datum"], nu=nu_, stopp=e_ if halv else stp, stopp_ursp=stp,
                     m2=e_ + 2 * R_, m3=e_ + 3 * R_, R=R_, dagar=dagar, dagar_kvar=max(0, 10 - dagar), halv=halv,
                     antal_kvar=kvar, resultat_r=(nu_ - e_) / R_ if R_ > 0 else None, notis=ps_.get("notis", {})))
 if PORTF:
-    meta["portfolj"] = dict(affarer=PORTF, kurva=sorted(_kurva.items()),
+    _ik = [x["idx_kr"] for x in PORTF if x["idx_kr"] is not None]
+    meta["portfolj"] = dict(affarer=PORTF, kurva=sorted(_kurva.items()), ikurva=sorted(_ikurva.items()),
+                            insats=sum(x["insats"] for x in PORTF), idx_kr=sum(_ik) if len(_ik) == len(PORTF) else None,
                             real=sum(x["real"] for x in PORTF), oreal=sum(x["oreal"] for x in PORTF),
                             risk=sum(x["risk"] for x in PORTF), start=min(x["datum"] for x in PORTF))
 meta["positioner"] = POS
