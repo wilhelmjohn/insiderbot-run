@@ -29,6 +29,7 @@ if "--live" in sys.argv:
         if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
             print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
 RISK_KR = 1000
+UPPF_START = "2026-10-12"         # uppföljning: alla signaler från och med den här dagen, oavsett status
 MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
 EXTRA = ["LYKO-A.ST"]
 TOPP_N = 80
@@ -324,6 +325,43 @@ for t in univ:
     if s is None: continue
     sek_dd.setdefault(s, []).append(dd_now[t])
 
+UPPF = []
+
+
+def _uppf_signaler(t, c, sigs):
+    """Följ varje signal sedan UPPF_START med screenens regel: köp på signaldagens stängning med RISK_KR i risk,
+    halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter 10 handelsdagar (stängningskurser).
+    Index räknas med samma insats under samma dagar. En ny signal i samma aktie räknas först när förra affären är avslutad."""
+    upptagen = -1
+    I = INDEX[LAND(t)]
+    for s in sigs:
+        if dates[s["i"]] < pd.Timestamp(UPPF_START) or s["i"] <= upptagen: continue
+        i, e = s["i"], s["e"]; Rk = e * s["risk"]; stop = e - Rk
+        kvar, res, half, slut, hand = 1.0, 0.0, False, None, []
+        for d in range(1, 11):
+            if i + d >= len(c): break
+            x = c[i + d]
+            if not np.isfinite(x): continue
+            ds = dates[i + d].strftime("%Y-%m-%d")
+            if not half and x >= e + 2 * Rk:
+                res += 0.5 * 2; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "2R, halva såld"])
+            if half and x >= e + 3 * Rk:
+                res += kvar * 3; kvar = 0; slut = i + d; hand.append([d, ds, "3R, resten såld"]); break
+            if x <= stop:
+                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d
+                hand.append([d, ds, "stopp på köpkursen" if half else "stopp"]); break
+            if d == 10:
+                res += kvar * (x - e) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, "tiden ute, såld"])
+        j = slut if slut is not None else len(c) - 1
+        upptagen = j if slut is not None else len(c)
+        if kvar > 0: res += kvar * (c[j] - e) / Rk
+        insats = RISK_KR * e / Rk
+        idx_kr = insats * (I[j] / I[i] - 1) if np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
+        UPPF.append(dict(t=t, namn=namn(t), land=LAND(t), valuta=VALUTA[LAND(t)], datum=dates[i].strftime("%Y-%m-%d"), kurs=float(e),
+                         stopp=float(e - Rk), nu=float(c[j]), r=float(res), kr=round(RISK_KR * res), idx_kr=None if idx_kr is None else round(idx_kr),
+                         insats=round(insats), oppen=slut is None, dagar=int(j - i), handelser=hand))
+
+
 rows = []
 for t in univ:
     c, r, K, D, h, hi250 = ind(t)
@@ -331,6 +369,7 @@ for t in univ:
     now = c[-1]; dd = now / hi250[-1] - 1
     top_i = len(c) - 250 + int(np.nanargmax(c[-250:]))
     sigs = s1_signals(c, r, K, hi250)
+    _uppf_signaler(t, c, sigs)
     status, niv, pair, note, imorgon = None, None, None, "", None
     last = sigs[-1] if sigs else None
     if last and last["i"] >= T - 8:
@@ -524,6 +563,12 @@ if PORTF:
                             real=sum(x["real"] for x in PORTF), oreal=sum(x["oreal"] for x in PORTF),
                             risk=sum(x["risk"] for x in PORTF), start=min(x["datum"] for x in PORTF))
 meta["positioner"] = POS
+if UPPF:
+    _st = {(r["t"], r["niv"]["signaldag"]): r["status"] for r in rows if r["niv"]}
+    for u_ in UPPF: u_["status"] = _st.get((u_["t"], u_["datum"]))
+    UPPF.sort(key=lambda u_: (u_["datum"], u_["namn"]), reverse=True)
+    meta["uppfoljning"] = dict(start=UPPF_START, affarer=UPPF, kr=sum(u_["kr"] for u_ in UPPF),
+                               idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF), n=len(UPPF), stangda=sum(1 for u_ in UPPF if not u_["oppen"]))
 # ---------- extra bevakning (divergens_bevaka.json: {"tickers": [...]}) ----------
 try:
     BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])

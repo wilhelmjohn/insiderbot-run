@@ -121,6 +121,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <section class="market" id="market" aria-label="Marknadsläge"></section>
   <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
   <section class="posbox" id="pf" aria-label="Teoretisk portfölj" hidden></section>
+  <section class="posbox" id="uppf" aria-label="Uppföljning av alla signaler" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
   <div class="chips" id="lander" role="group" aria-label="Filtrera på börs"></div>
   <div class="list" id="list"></div>
@@ -190,6 +191,16 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
  <div class="pfsum num"><div><div class="lbl">Totalt</div><div class="big ${tot>=0?"buy":"sell"}">${kr(tot)}</div></div><div><div class="lbl">Realiserat</div><div class="big">${kr(F.real)}</div></div><div><div class="lbl">Orealiserat</div><div class="big">${kr(F.oreal)}</div></div><div><div class="lbl">Affärer</div><div class="big">${F.affarer.length}</div><div class="lbl">${st.length?`${vin} av ${st.length} stängda med vinst`:"ingen stängd än"}</div></div></div>
  ${svg}<table class="pftab"><thead><tr><th>Affär</th><th class="hm">Realiserat</th><th class="hm">Orealiserat</th><th>Resultat</th></tr></thead><tbody>${F.affarer.map(rad).join("")}</tbody></table>
  <p class="tk" style="margin:8px 0 0">Bara de affärer du själv valt och rapporterat. Kronor i SEK (dagens växelkurs), R = resultat delat med risken vid köpet. Kurvan visar resultatet per dag, stängningskurser.</p>`})();
+(function(){const U=M.uppfoljning;if(!U||!U.affarer.length)return;const el=document.getElementById("uppf");el.hidden=false;
+ const kr=x=>x==null?"–":(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",rr=x=>(x>=0?"+":"−")+nf(Math.abs(x),2)+"R";
+ const A=U.affarer,st=A.filter(a=>!a.oppen),vin=st.filter(a=>a.kr>0).length,snitt=A.reduce((s,a)=>s+a.r,0)/A.length,mot=U.kr-U.idx_kr;
+ const rad=a=>{const v=a.land==="SE"?"":" "+a.valuta;const h=a.handelser.map(x=>`dag ${x[0]} ${x[2]}`).join(", ");
+  return `<tr><td><b>${esc(a.namn)}</b> <span class="tk">${esc(a.t.replace(/\.(ST|OL|CO)$/,""))}</span><div class="tk">${dd(a.datum)} à ${nf(a.kurs)}${v} · stopp ${nf(a.stopp)} · ${a.oppen?`öppen dag ${a.dagar}, nu ${nf(a.nu)}`:esc(h)}${a.oppen&&h?" · "+esc(h):""}${a.status?" · nu "+esc(a.status):""}</div></td>
+  <td class="hm num">${kr(a.idx_kr)}</td><td class="num ${a.kr>=0?"buy":"sell"}"><b>${kr(a.kr)}</b><div>${rr(a.r)}</div></td></tr>`};
+ el.innerHTML=`<h2>Alla signaler sedan ${dd(U.start)}, 1 000 kr risk var</h2>
+ <div class="pfsum num"><div><div class="lbl">Resultat</div><div class="big ${U.kr>=0?"buy":"sell"}">${kr(U.kr)}</div></div><div><div class="lbl">Index, samma insats</div><div class="big">${kr(U.idx_kr)}</div></div><div><div class="lbl">Mot index</div><div class="big ${mot>=0?"buy":"sell"}">${kr(mot)}</div></div><div><div class="lbl">Signaler</div><div class="big">${A.length}</div><div class="lbl">${rr(snitt)} i snitt · ${st.length?`${vin} av ${st.length} avslutade med vinst`:"ingen avslutad än"}</div></div></div>
+ <details><summary class="tk" style="cursor:pointer">Visa alla ${A.length} signaler</summary><table class="pftab"><thead><tr><th>Signal</th><th class="hm">Index</th><th>Resultat</th></tr></thead><tbody>${A.map(rad).join("")}</tbody></table></details>
+ <p class="tk" style="margin:8px 0 0">Varje signal räknas oavsett status (Köpläge, Avvakta eller Utgår): köp på signaldagens stängning med 1 000 kr risk, halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter tio handelsdagar. Stängningskurser, utan courtage och valutaeffekt. Index med samma insats under samma dagar.</p>`})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
