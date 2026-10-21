@@ -567,8 +567,8 @@ if UPPF:
     _st = {(r["t"], r["niv"]["signaldag"]): r["status"] for r in rows if r["niv"]}
     for u_ in UPPF: u_["status"] = _st.get((u_["t"], u_["datum"]))
     UPPF.sort(key=lambda u_: (u_["datum"], u_["namn"]), reverse=True)
-    meta["uppfoljning"] = dict(start=UPPF_START, affarer=UPPF, kr=sum(u_["kr"] for u_ in UPPF),
-                               idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF), n=len(UPPF), stangda=sum(1 for u_ in UPPF if not u_["oppen"]))
+    meta["uppfoljning"] = dict(start=UPPF_START, affarer=UPPF, kr=sum(u_["kr"] for u_ in UPPF if not u_["oppen"]),
+                               idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF if not u_["oppen"]), n=len(UPPF), stangda=sum(1 for u_ in UPPF if not u_["oppen"]))
 # ---------- extra bevakning (divergens_bevaka.json: {"tickers": [...]}) ----------
 try:
     BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])
