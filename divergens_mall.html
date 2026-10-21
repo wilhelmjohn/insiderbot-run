@@ -89,6 +89,7 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:4px}
 .legend i.dash{border-top-style:dashed} .legend i.tri{width:0;border:5px solid transparent;border-bottom:8px solid var(--buy);border-top:0;vertical-align:1px}
 .legend i.line{border-top:0;border-left:2px dotted var(--faint);height:10px;width:0}
+.legend i.sig{width:8px;height:8px;border:0;background:var(--accent);transform:rotate(45deg);vertical-align:0}
 .why{font-size:14px;margin:0;max-width:65ch}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{font-weight:500;color:var(--faint);text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:4px 6px 4px 0;border-bottom:1px solid var(--line)}
@@ -232,7 +233,7 @@ function fill(det,r){
  const ny=r.land!=="SE"?`<div class="empty">Pressmeddelanden finns bara för svenska bolag.</div>`:r.nyheter.length?`<div class="tbl"><table><tbody>${r.nyheter.map(x=>`<tr><td class="num" style="white-space:nowrap">${dd(x.d)}</td><td class="muted" style="white-space:nowrap">${esc(x.typ.replace("_"," "))}</td><td>${esc(x.rubrik)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Inga pressmeddelanden de senaste 30 dagarna.</div>`;
  det.innerHTML=`<p class="why">${esc(r.mot)}</p>
  <div class="dgrid">${g.join("")}</div>
- <div class="sec"><h3>Kurs, 90 handelsdagar</h3><div class="legend"><span><i style="border-color:var(--c-price)"></i>Stängning</span><span><i class="dash" style="border-color:var(--c-low)"></i>Bottnar</span><span><i class="tri"></i>Insynsköp</span><span><i class="line"></i>Rapport</span></div><div class="chart"><canvas id="p-${r.t}" role="img" aria-label="Kursgraf för ${esc(r.namn)} med bottnar och insynsköp markerade"></canvas></div></div>
+ <div class="sec"><h3>Kurs, 90 handelsdagar</h3><div class="legend"><span><i style="border-color:var(--c-price)"></i>Stängning</span><span><i class="dash" style="border-color:var(--c-low)"></i>Bottnar</span><span><i class="tri"></i>Insynsköp</span><span><i class="line"></i>Rapport</span>${r.niv?`<span><i class="sig"></i>Signal ${dd(r.niv.signaldag)}</span>`:""}</div><div class="chart"><canvas id="p-${r.t}" role="img" aria-label="Kursgraf för ${esc(r.namn)} med bottnar och insynsköp markerade"></canvas></div></div>
  <div class="sec"><h3>RSI(9)</h3><div class="legend"><span><i style="border-color:var(--c-rsi)"></i>RSI(9)</span><span><i class="dash" style="border-color:var(--c-div)"></i>Bottnar i RSI</span></div><div class="chart small"><canvas id="r-${r.t}" role="img" aria-label="RSI-graf för ${esc(r.namn)} med bottnarna markerade"></canvas></div></div>
  <div class="sec"><h3>Insyn, 90 dagar</h3>${ins}</div>
  <div class="sec"><h3>Pressmeddelanden, 30 dagar</h3>${ny}</div>
@@ -245,13 +246,15 @@ function draw(r){
  const idx=s=>{let i=ch.d.findIndex(d=>d>=s);return i<0?null:i};
  const buys=ch.ins.filter(a=>a.typ==="Köp").map(a=>idx(a.d)).filter(i=>i!=null);
  const rap=ch.rap.map(idx).filter(i=>i!=null);
- const vlines={id:"vl",afterDraw(c){const x=c.scales.x,a=c.chartArea,g=c.ctx;g.save();g.strokeStyle=tick;g.setLineDash([2,3]);rap.forEach(i=>{const px=x.getPixelForValue(i);g.beginPath();g.moveTo(px,a.top);g.lineTo(px,a.bottom);g.stroke()});g.restore()}};
+ const sig=r.niv?ch.d.indexOf(r.niv.signaldag):-1;
+ const vlines={id:"vl",afterDraw(c){const x=c.scales.x,a=c.chartArea,g=c.ctx;g.save();g.strokeStyle=tick;g.setLineDash([2,3]);rap.forEach(i=>{const px=x.getPixelForValue(i);g.beginPath();g.moveTo(px,a.top);g.lineTo(px,a.bottom);g.stroke()});if(sig>=0){const px=x.getPixelForValue(sig);g.strokeStyle=css("--accent");g.globalAlpha=.55;g.setLineDash([]);g.lineWidth=1.5;g.beginPath();g.moveTo(px,a.top);g.lineTo(px,a.bottom);g.stroke()}g.restore()}};
  const xs={type:"category",labels:ch.d,grid:{display:false},ticks:{color:tick,font:{size:10},maxRotation:0,autoSkip:false,callback:(v,i)=>i%15===0||i===N-1?dd(ch.d[i]):""}};
  const base={responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:"index",intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>dd(ch.d[i[0].dataIndex])}}}};
  new Chart(document.getElementById("p-"+r.t),{type:"line",data:{labels:ch.d,datasets:[
   {label:"Stängning",data:ch.c,borderColor:css("--c-price"),borderWidth:1.6,pointRadius:0,spanGaps:true},
   {label:"Botten",data:seg(ch.c),borderColor:css("--c-low"),borderDash:[5,4],borderWidth:1.5,spanGaps:true,pointRadius:ch.d.map((_,i)=>ch.lows.includes(i)?4:0),pointBackgroundColor:css("--c-low")},
-  {label:"Insynsköp",data:ch.d.map((_,i)=>buys.includes(i)?ch.c[i]:null),showLine:false,pointStyle:"triangle",pointRadius:6,pointBackgroundColor:css("--buy"),borderColor:css("--buy")}]},
+  {label:"Insynsköp",data:ch.d.map((_,i)=>buys.includes(i)?ch.c[i]:null),showLine:false,pointStyle:"triangle",pointRadius:6,pointBackgroundColor:css("--buy"),borderColor:css("--buy")},
+  {label:"Signal",data:ch.d.map((_,i)=>i===sig?ch.c[i]:null),showLine:false,pointStyle:"rectRot",pointRadius:6,pointHoverRadius:7,pointBackgroundColor:css("--accent"),borderColor:css("--surface"),borderWidth:1.5}]},
   options:{...base,scales:{x:xs,y:{grid:{color:grid},ticks:{color:tick,font:{size:10},maxTicksLimit:5,callback:v=>nf(v,v<10?2:0)}}}},plugins:[vlines]});
  new Chart(document.getElementById("r-"+r.t),{type:"line",data:{labels:ch.d,datasets:[
   {label:"RSI(9)",data:ch.r,borderColor:css("--c-rsi"),borderWidth:1.4,pointRadius:0},
