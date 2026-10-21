@@ -1,6 +1,7 @@
 """Lägg till eller stäng en egen position i Divergensscreen (divergens_positioner.json i datarepot).
 
   python divergens_position.py lagg TICKER ANTAL KURS [--datum ÅÅÅÅ-MM-DD] [--stopp PRIS]
+  python divergens_position.py salj TICKER ANTAL KURS [--datum ÅÅÅÅ-MM-DD] [--anledning TEXT]
   python divergens_position.py stang TICKER
   python divergens_position.py lista
 
@@ -33,6 +34,16 @@ if a[0] == "lagg":
     R = kurs - stopp
     pf["positioner"].append(dict(ticker=t, antal=antal, kurs=kurs, datum=datum, stopp=round(stopp, 4), notis={}))
     print(f"{t}: {antal} st à {kurs}, stopp {stopp:.2f} (risk {100*R/kurs:.1f} %), mål 2R {kurs+2*R:.2f}, 3R {kurs+3*R:.2f}")
+elif a[0] == "salj":
+    t, antal, kurs = a[1], int(a[2]), float(a[3].replace(",", "."))
+    datum = opt("--datum") or datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d")
+    p = next((p for p in pf["positioner"] if p["ticker"] == t and not p.get("stangd")), None)
+    if p is None: sys.exit(f"Ingen öppen position i {t}")
+    kvar = p["antal"] - sum(x["antal"] for x in p.get("salj", []))
+    if antal > kvar: sys.exit(f"Bara {kvar} st kvar i {t}")
+    p.setdefault("salj", []).append(dict(antal=antal, kurs=kurs, datum=datum, anledning=opt("--anledning") or ""))
+    if antal == kvar: p["stangd"] = datum
+    print(f"Sålde {antal} st {t} à {kurs} ({datum}); {kvar - antal} kvar" + (", positionen stängd" if antal == kvar else ""))
 elif a[0] == "stang":
     for p in pf["positioner"]:
         if p["ticker"] == a[1] and not p.get("stangd"):

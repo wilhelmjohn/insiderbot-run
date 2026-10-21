@@ -49,6 +49,13 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .posbox h2{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 8px}
 .posbox .p{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--line)}
 .posbox .p:first-of-type{border-top:0}
+.pfsum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 10px}
+.pfsum .lbl{font-size:12px;color:var(--faint)}.pfsum .big{font:600 18px var(--f-body)}
+.pfchart{width:100%;height:110px;display:block;margin:4px 0 8px}
+.pftab{width:100%;border-collapse:collapse;font-size:13px}.pftab th{font-weight:500;color:var(--faint);text-align:right;padding:4px 6px}
+.pftab td{text-align:right;padding:6px;border-top:1px solid var(--line)}.pftab th:first-child,.pftab td:first-child{text-align:left}
+.posbox+.posbox{margin-top:10px}
+@media (max-width:560px){.pfsum{grid-template-columns:repeat(2,minmax(0,1fr))}.pftab .hm{display:none}}
 .posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -112,6 +119,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   </header>
   <section class="market" id="market" aria-label="Marknadsläge"></section>
   <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
+  <section class="posbox" id="pf" aria-label="Teoretisk portfölj" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
   <div class="chips" id="lander" role="group" aria-label="Filtrera på börs"></div>
   <div class="list" id="list"></div>
@@ -167,6 +175,20 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
   const nx=p.nu<=p.stopp?"Stoppen nådd: kontrollera att ordern gått.":!p.halv?`Nästa: sälj halva (${Math.floor(p.antal/2)} st) vid ${nf(p.m2)}${v} och flytta stoppen till ${nf(p.kurs)}.`:`Halva såld. Resten säljs vid ${nf(p.m3)}${v}, stopp ${nf(p.stopp)}.`;
   return `<div class="p"><div><b>${esc(p.namn)}</b> <span class="tk">${esc(p.ticker.replace(/\.(ST|OL|CO)$/,""))}</span>${p.nordnet?` <a class="nn in" href="${esc(p.nordnet)}" target="_blank" rel="noopener">Nordnet ↗</a>`:""}<div class="levels num"><span><b>Köpt</b>${p.antal_kvar} st à ${nf(p.kurs)}${v} · ${dd(p.datum)}</span><span><b>Stopp</b>${nf(p.stopp)}</span><span><b>2R / 3R</b>${nf(p.m2)} / ${nf(p.m3)}</span><span><b>Dagar kvar</b>${p.dagar_kvar}</span></div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(p.nu)}</div><div class="${res>=0?"buy":"sell"}">${pc(res,1)} · ${p.resultat_r==null?"–":(p.resultat_r>=0?"+":"−")+nf(Math.abs(p.resultat_r),1)+"R"}</div></div><div class="nx">${nx}</div></div>`}).join("")})();
+(function(){const F=M.portfolj;if(!F)return;const el=document.getElementById("pf");el.hidden=false;
+ const kr=x=>(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",tot=F.real+F.oreal;
+ const st=F.affarer.filter(a=>a.stangd),vin=st.filter(a=>a.real>0).length;
+ const k=[[F.start,0],...F.kurva],ys=[0,...k.map(x=>x[1])],mn=Math.min(...ys),mx=Math.max(...ys),W=600,H=110,sp=(mx-mn)||1;
+ const X=i=>k.length>1?i/(k.length-1)*W:W/2,Y=v=>H-6-(v-mn)/sp*(H-12);
+ const path=k.map((x,i)=>(i?"L":"M")+X(i).toFixed(1)+","+Y(x[1]).toFixed(1)).join("");
+ const svg=k.length>1?`<svg class="pfchart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Portföljens resultat över tid"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-dasharray="4 4"/><path d="${path}" fill="none" stroke="${tot>=0?"var(--buy)":"var(--sell)"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:"";
+ const rad=a=>{const v=a.land==="SE"?"":" "+a.valuta;const sald=a.salj.map(s=>`${s.antal} à ${nf(s.kurs)}`).join(", ");
+  return `<tr><td><b>${esc(a.namn)}</b><div class="tk">${dd(a.datum)} · ${a.antal} st à ${nf(a.kurs)}${v}${sald?` · sålt ${sald}`:""}${a.stangd?" · stängd":` · ${a.kvar} kvar, nu ${nf(a.nu)}`}</div></td>
+  <td class="hm num">${kr(a.real)}</td><td class="hm num">${a.stangd?"–":kr(a.oreal)}</td><td class="num ${a.real+a.oreal>=0?"buy":"sell"}"><b>${kr(a.real+a.oreal)}</b><div>${a.r==null?"":(a.r>=0?"+":"−")+nf(Math.abs(a.r),2)+"R"}</div></td></tr>`};
+ el.innerHTML=`<h2>Teoretisk portfölj sedan ${dd(F.start)}</h2>
+ <div class="pfsum num"><div><div class="lbl">Totalt</div><div class="big ${tot>=0?"buy":"sell"}">${kr(tot)}</div></div><div><div class="lbl">Realiserat</div><div class="big">${kr(F.real)}</div></div><div><div class="lbl">Orealiserat</div><div class="big">${kr(F.oreal)}</div></div><div><div class="lbl">Affärer</div><div class="big">${F.affarer.length}</div><div class="lbl">${st.length?`${vin} av ${st.length} stängda med vinst`:"ingen stängd än"}</div></div></div>
+ ${svg}<table class="pftab"><thead><tr><th>Affär</th><th class="hm">Realiserat</th><th class="hm">Orealiserat</th><th>Resultat</th></tr></thead><tbody>${F.affarer.map(rad).join("")}</tbody></table>
+ <p class="tk" style="margin:8px 0 0">Bara de affärer du själv valt och rapporterat. Kronor i SEK (dagens växelkurs), R = resultat delat med risken vid köpet. Kurvan visar resultatet per dag, stängningskurser.</p>`})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
