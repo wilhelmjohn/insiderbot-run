@@ -28,7 +28,7 @@ if "--live" in sys.argv:
         from zoneinfo import ZoneInfo as _Z
         if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
             print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
-RISK_KR = 1000
+RISK_KR = 500
 UPPF_START = "2026-10-12"         # uppföljning: alla signaler från och med den här dagen, oavsett status
 MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
 EXTRA = ["LYKO-A.ST"]
@@ -59,7 +59,7 @@ def bors(t):
     b_ = USA_INFO.Bors.get(t) if "Bors" in USA_INFO.columns else None
     return b_ if isinstance(b_, str) and b_ in ("Nasdaq", "NYSE") else "Nasdaq"
 def fx_sek(land):
-    """Senaste växelkurs till SEK (1 NOK = x SEK). Används bara för antal aktier vid 1000 kr risk."""
+    """Senaste växelkurs till SEK (1 NOK = x SEK). Används bara för antal aktier vid RISK_KR i risk."""
     if land == "SE": return 1.0
     if land == "US":
         return float(usa_px["USDSEK=X"].dropna().iloc[-1]) if "USDSEK=X" in usa_px.columns else 10.5

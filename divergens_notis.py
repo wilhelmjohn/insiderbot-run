@@ -45,7 +45,7 @@ kort = lambda t: t.rsplit(".", 1)[0]
 def rad(t, v):
     n = v["niv"]; val = "" if v.get("valuta", "SEK") == "SEK" else f" {v['valuta']}"
     return (f"{v['namn']} ({kort(t)}): köp {f(n['kop'])}{val}, stopp {f(n['stopp'])}, mål {f(n['m2'])} / {f(n['m3'])}, "
-            f"{n['antal']} st (risk 1 000 kr)")
+            f"{n['antal']} st (risk 500 kr)")
 
 
 nya = []

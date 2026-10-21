@@ -136,7 +136,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
       <dt>Utgår</dt><dd>Signal de senaste dagarna men stoppen, målet eller ett överköpt läge är nått.</dd>
       <dt>RSI(9)</dt><dd>Styrkan i de senaste rörelserna, 0–100. Under 30 är svagt, över 70 starkt.</dd>
       <dt>Stochastic</dt><dd>Var kursen står i 14-dagarsspannet, 0–100. %K under 25 är översålt. När %K korsar upp över %D har den vänt.</dd>
-      <dt>R och 2R</dt><dd>R är avståndet från köpkurs till stopp. 2R är ett mål dubbelt så långt upp. Antal aktier räknas så att stoppen kostar högst 1 000 kr.</dd>
+      <dt>R och 2R</dt><dd>R är avståndet från köpkurs till stopp. 2R är ett mål dubbelt så långt upp. Antal aktier räknas så att stoppen kostar högst 500 kr.</dd>
       <dt>Norge och Danmark</dt><dd>Samma regler som för Stockholm, men de är bara backtestade på svenska aktier. Insyn, blankning och pressmeddelanden finns bara för svenska bolag. Kurser i NOK och DKK, antal aktier räknat i kronor.</dd>
       <dt>Marknadsfilter</dt><dd>På när index ligger minst 10 % under sin 1-årstopp eller när mer än 70 % av aktierna stänger under sitt 50-dagarssnitt. Bredden fångar svaghet under ytan även när index ser stabilt ut.</dd>
       <dt>Mot index</dt><dd>Aktiens utveckling sedan första bottnen minus indexets. Att aktien slutat falla mer än index är ett tidigt tecken på att köpare tagit över.</dd>
@@ -202,10 +202,10 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
   <div class="tk">${dd(a.datum)}: köpt à ${p(a.kurs)}</div>
   <div class="tk">Stopp ${p(a.stopp)} · 2R ${a.m2!=null?p(a.m2):"–"} · 3R ${a.m3!=null?p(a.m3):"–"}</div>${h}${nu}${sc}</td>
   <td class="hm num">${kr(a.idx_kr)}</td><td class="num ${a.kr>=0?"buy":"sell"}"><b>${kr(a.kr)}</b><div>${rr(a.r)}</div></td></tr>`};
- el.innerHTML=`<h2>Alla signaler sedan ${dd(U.start)}, 1 000 kr risk var</h2>
+ el.innerHTML=`<h2>Alla signaler sedan ${dd(U.start)}, ${M.risk_kr.toLocaleString("sv-SE")} kr risk var</h2>
  <div class="pfsum num"><div><div class="lbl">Resultat, avslutade</div><div class="big ${skr>=0?"buy":"sell"}">${kr(skr)}</div></div><div><div class="lbl">Index, samma insats</div><div class="big">${kr(sidx)}</div></div><div><div class="lbl">Mot index</div><div class="big ${mot>=0?"buy":"sell"}">${kr(mot)}</div></div><div><div class="lbl">Avslutade</div><div class="big">${st.length} av ${A.length}</div><div class="lbl">${st.length?`${rr(snitt)} i snitt · ${vin} med vinst · ${A.length-st.length} öppna räknas inte`:"ingen avslutad än"}</div></div></div>
  <details><summary class="tk" style="cursor:pointer">Visa alla ${A.length} signaler</summary><table class="pftab"><thead><tr><th>Signal</th><th class="hm">Index</th><th>Resultat</th></tr></thead><tbody>${A.map(rad).join("")}</tbody></table></details>
- <p class="tk" style="margin:8px 0 0">Varje signal räknas oavsett vad screenen visar i dag (Köpläge, Avvakta eller Utgår): köp på signaldagens stängning med 1 000 kr risk, halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter tio handelsdagar. Nivåerna räknas på stängningskurser och säljs på 2R- respektive 3R-kursen, stopp och tidsgräns på stängningen. Utan courtage och valutaeffekt. "Screenen i dag" visar om signalen fortfarande går att köpa; uppföljningen räknar affären vidare oavsett. Index med samma insats under samma dagar. Summan överst räknar bara avslutade affärer; öppna visas i listan med resultatet hittills.</p>`})();
+ <p class="tk" style="margin:8px 0 0">Varje signal räknas oavsett vad screenen visar i dag (Köpläge, Avvakta eller Utgår): köp på signaldagens stängning med ${M.risk_kr.toLocaleString("sv-SE")} kr risk, halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter tio handelsdagar. Nivåerna räknas på stängningskurser och säljs på 2R- respektive 3R-kursen, stopp och tidsgräns på stängningen. Utan courtage och valutaeffekt. "Screenen i dag" visar om signalen fortfarande går att köpa; uppföljningen räknar affären vidare oavsett. Index med samma insats under samma dagar. Summan överst räknar bara avslutade affärer; öppna visas i listan med resultatet hittills.</p>`})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
