@@ -22,22 +22,23 @@ RESERV_DJI = """AAPL AMGN AMZN AXP BA CAT CRM CSCO CVX DIS GS HD HON IBM JNJ JPM
 def wiki(url, kolumner):
     r = requests.get(url, headers=H, timeout=30); r.raise_for_status()
     for t in pd.read_html(io.StringIO(r.text)):
-        for k in kolumner:
-            if k in t.columns and 25 <= len(t) <= 120:
-                return [str(x).strip().replace(".", "-") for x in t[k].dropna()]
+        if isinstance(t.columns, pd.MultiIndex): t.columns = [" ".join(map(str, c)) for c in t.columns]
+        for c in t.columns:
+            if any(k.lower() in str(c).lower() for k in kolumner) and 25 <= len(t) <= 120:
+                v = [str(x).strip().split()[0].replace(".", "-") for x in t[c].dropna()]
+                if sum(1 for x in v if x.replace("-", "").isalpha() and x.upper() == x and len(x) <= 6) >= 0.9 * len(v):
+                    return v
     raise ValueError("ingen tabell")
 
 
 info = pd.read_csv(INFO) if INFO.exists() else pd.DataFrame(columns=["Ticker", "Namn", "Sektor", "Bors", "Index", "Hamtad"])
 farsk = len(info) and (pd.Timestamp.today() - pd.to_datetime(info.Hamtad).max()).days < 7
-if farsk:
-    ndx = info.loc[info.Index.str.contains("NDX", na=False), "Ticker"].tolist()
-    dji = info.loc[info.Index.str.contains("DJI", na=False), "Ticker"].tolist()
-else:
-    try: ndx = wiki("https://en.wikipedia.org/wiki/Nasdaq-100", ["Ticker", "Symbol"])
-    except Exception as e: print("Nasdaq-100 från reservlistan:", e); ndx = RESERV_NDX
-    try: dji = wiki("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ["Symbol", "Ticker"])
-    except Exception as e: print("Dow Jones från reservlistan:", e); dji = RESERV_DJI
+forra_ndx = info.loc[info.Index.str.contains("NDX", na=False), "Ticker"].tolist() if len(info) else []
+forra_dji = info.loc[info.Index.str.contains("DJI", na=False), "Ticker"].tolist() if len(info) else []
+try: ndx = wiki("https://en.wikipedia.org/wiki/Nasdaq-100", ["Ticker", "Symbol"])
+except Exception as e: print("Nasdaq-100: Wikipedia misslyckades,", e); ndx = forra_ndx or RESERV_NDX
+try: dji = wiki("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average", ["Symbol", "Ticker"])
+except Exception as e: print("Dow Jones: Wikipedia misslyckades,", e); dji = forra_dji or RESERV_DJI
 ndx, dji = list(dict.fromkeys(ndx)), list(dict.fromkeys(dji))
 TICKERS = list(dict.fromkeys(ndx + dji))
 print(f"Nasdaq-100: {len(ndx)}, Dow Jones: {len(dji)}, totalt {len(TICKERS)}")

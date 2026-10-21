@@ -11,6 +11,11 @@ on:
         type: choice
         options: [prel, bekraftat]
         default: prel
+      marknad:
+        description: "Vid bekraftat: norden (19:22) eller usa (22:22); alla = båda"
+        type: choice
+        options: [alla, norden, usa]
+        default: alla
       notiser:
         description: "Skicka notiser"
         type: boolean
@@ -60,7 +65,7 @@ jobs:
         if: steps.kurser.outputs.stangt != '1' && inputs.notiser
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python -u divergens_notis.py --lage ${{ inputs.lage }}
+        run: python -u divergens_notis.py --lage ${{ inputs.lage }} --marknad ${{ inputs.marknad || 'alla' }}
       - name: Spara
         if: steps.kurser.outputs.stangt != '1'
         run: |

@@ -35,7 +35,8 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .stamp{font-size:12px;color:var(--muted);text-align:right}
 .mode{display:inline-block;font:600 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;margin-bottom:4px}
 .mode.ok{background:var(--buy-bg);color:var(--buy)} .mode.prel{background:var(--near-bg);color:var(--near)}
-.market{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 16px;align-items:start}
+.market{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 16px;align-items:start}
+@media (max-width:560px){.market{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .market .f{font-size:12px;color:var(--muted)}.market .f b{color:var(--text)}
 .land{font:600 10px var(--f-mono);letter-spacing:.04em;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
 .market .big{font:600 22px var(--f-mono)}
@@ -112,7 +113,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <section class="market" id="market" aria-label="Marknadsläge"></section>
   <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
-  <div class="chips" id="lander" role="group" aria-label="Filtrera på land"></div>
+  <div class="chips" id="lander" role="group" aria-label="Filtrera på börs"></div>
   <div class="list" id="list"></div>
   <details class="help">
     <summary>Så läser du screenen</summary>
@@ -130,6 +131,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
       <dt>Marknadsfilter</dt><dd>På när index ligger minst 10 % under sin 1-årstopp eller när mer än 70 % av aktierna stänger under sitt 50-dagarssnitt. Bredden fångar svaghet under ytan även när index ser stabilt ut.</dd>
       <dt>Mot index</dt><dd>Aktiens utveckling sedan första bottnen minus indexets. Att aktien slutat falla mer än index är ett tidigt tecken på att köpare tagit över.</dd>
       <dt>Volym</dt><dd>Volymen vid andra bottnen jämfört med den första, och volymen efter bottnen jämfört med 20-dagarssnittet. Lägre volym vid andra bottnen brukar tolkas som att säljtrycket avtar, men i testet 2016–2026 gav varken den eller volymen vid vändningen någon stabil fördel. Visas som kontext.</dd>
+      <dt>USA</dt><dd>Alla aktier i Nasdaq-100 och Dow Jones. Kurser i USD, antal räknat i kronor. Marknadsfiltret använder S&amp;P 500 och bredden bland de här aktierna. New York är öppet 15:30–22:00 svensk tid; bekräftat läge kommer efter stängning där.</dd>
       <dt>1-årstopp</dt><dd>Högsta stängningskursen de senaste 250 handelsdagarna.</dd>
     </dl>
   </details>
@@ -150,12 +152,12 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const M=DATA.meta;
 
-document.getElementById("sub").textContent=`${M.n_se} svenska storbolag inkl. Lyko, ${M.n_no} norska och ${M.n_dk} danska · RSI(9)-divergens enligt reglerna från Bagge-testet`;
-const LN={SE:"Sverige",NO:"Norge",DK:"Danmark"};
+document.getElementById("sub").textContent=`${M.n_se} svenska storbolag inkl. Lyko, ${M.n_no} norska, ${M.n_dk} danska och ${M.n_us||0} amerikanska (Nasdaq-100 och Dow Jones) · RSI(9)-divergens enligt reglerna från Bagge-testet`;
+const BORSER=["Stockholm","Oslo","Köpenhamn","Nasdaq","NYSE"];
 document.getElementById("stamp").innerHTML=M.prel
  ?`<span class="mode prel">Preliminärt</span><br>Kurser ${esc(M.uppdaterad.slice(11))} · bekräftas efter stängning`
  :`<span class="mode ok">Bekräftat</span><br>Stängning ${dd(M.kursdag)} · uppdaterad ${dd(M.uppdaterad.slice(0,10))} ${esc(M.uppdaterad.slice(11))}`;
-const MK=["SE","NO","DK"].map(l=>({l,...M.marknad[l]}));
+const MK=["SE","NO","DK","US"].filter(l=>M.marknad[l]).map(l=>({l,...M.marknad[l]}));
 document.getElementById("market").innerHTML=MK.map(m=>`<div><div class="lbl">${m.namn} från 1-årstopp</div><div class="big">${pc(m.dd,1)}</div><div class="f">${m.bredd!=null?`${nf(100*m.bredd,0)} % under 50-d snitt · `:""}Filter <b>${m.filter?"på":"av"}</b></div></div>`).join("")+
 `<p>Marknadsfiltret är på när index ligger minst 10 % under sin topp <b>eller</b> när mer än 70 % av aktierna ligger under sitt 50-dagarssnitt. Då har signalerna historiskt gett drygt +1 % per affär. När det är av blir en signal bara Köpläge om aktien inte gått mer än 6 procentenheter sämre än index sedan första bottnen; annars Avvakta.</p>`;
 document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivning. Kurser: dagliga stängningar från insiderbot${M.prel?", under dagen Yahoo Finance med ca 15 min fördröjning":""}. Norge och Danmark: Yahoo Finance. Insyn: FI, 90 dagar. Blankning: FI. Risk per affär ${M.risk_kr.toLocaleString("sv-SE")} kr.`;
@@ -168,8 +170,8 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
-["Alla",...["SE","NO","DK"]].forEach(l=>{const n=l==="Alla"?DATA.rows.length:DATA.rows.filter(r=>r.land===l).length;if(l!=="Alla"&&!n)return;
- const b=document.createElement("button");b.className="chip";b.innerHTML=`${l==="Alla"?"Alla länder":LN[l]}<span class="n">${n}</span>`;b.setAttribute("aria-pressed",l===land);
+["Alla",...BORSER].forEach(l=>{const n=l==="Alla"?DATA.rows.length:DATA.rows.filter(r=>r.bors===l).length;if(l!=="Alla"&&!n)return;
+ const b=document.createElement("button");b.className="chip";b.innerHTML=`${l==="Alla"?"Alla börser":l}<span class="n">${n}</span>`;b.setAttribute("aria-pressed",l===land);
  b.onclick=()=>{land=l;[...lander.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};lander.appendChild(b)});
 const chips=document.getElementById("chips");
 ["Alla",...ORDER].forEach(s=>{if(s!=="Alla"&&!counts[s])return;const b=document.createElement("button");b.className="chip";b.id="chip-"+s;
@@ -183,7 +185,7 @@ function card(r){
  const el=document.createElement("article");el.className="row"+(r.status==="Utgår"?" out":"");el.style.setProperty("--st",`var(${c})`);el.style.setProperty("--stbg",`var(${b})`);
  const flags=r.flags.map(([t,k])=>`<span class="flag ${k}">${esc(t)}</span>`).join("");
  el.innerHTML=`<button class="row-head" aria-expanded="false" id="h-${r.t}">
-  <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land}</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
+  <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land==="US"?(r.bors==="NYSE"?"NYSE":"NASDAQ"):r.land}</span>`:""}${r.land==="US"&&M.usa_prel?`<span class="land" title="New York är öppet, kursen är preliminär">PREL</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
   <div class="metrics">${metric("Från 1-årstopp",`<span class="num">${pc(r.dd)}</span>`)}${metric("RSI(9)",`<span class="num">${nf(r.rsi,0)}</span>`)}${metric("Stochastic",`${esc(r.stoch)} <span class="num muted">${nf(r.K,0)}/${nf(r.D,0)}</span>`)}${metric("MACD",esc(r.macd))}</div>
   ${levels(r)}${r.bevakas?`<div class="flags"><span class="flag neu">★ Extra bevakning</span></div>`:""}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
  </button>${r.nordnet?`<a class="nn" href="${esc(r.nordnet)}" target="_blank" rel="noopener">Öppna i Nordnet ↗</a>`:""}<div class="detail" hidden></div>`;
@@ -235,7 +237,7 @@ function draw(r){
   options:{...base,scales:{x:xs,y:{min:0,max:100,grid:{color:c=>c.tick.value===30||c.tick.value===70?tick:grid},ticks:{color:tick,font:{size:10},stepSize:10,callback:v=>v===30||v===70?v:""}}}},plugins:[vlines]})}
 
 function render(){const list=document.getElementById("list");list.innerHTML="";
- const rows=DATA.rows.filter(r=>(filt==="Alla"||r.status===filt)&&(land==="Alla"||r.land===land));
+ const rows=DATA.rows.filter(r=>(filt==="Alla"||r.status===filt)&&(land==="Alla"||r.bors===land));
  if(!rows.length){list.innerHTML=`<div class="empty">Inga bolag i den här gruppen just nu.</div>`;return}
  rows.forEach(r=>list.appendChild(card(r)))}
 render();

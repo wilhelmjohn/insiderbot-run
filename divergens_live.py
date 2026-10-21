@@ -27,7 +27,11 @@ try:
     tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL")]
 except FileNotFoundError:
     pass
-tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25"]))
+try:
+    tickers += [t for t in pd.read_csv("divergens_usa_info.csv", usecols=["Ticker"]).Ticker]
+except FileNotFoundError:
+    pass
+tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25", "^GSPC"]))
 
 h = yf.download(tickers, period="2d", interval="15m", group_by="ticker", auto_adjust=False, progress=False, threads=True)
 live, tid = {}, {}
@@ -42,13 +46,12 @@ for t in tickers:
     ts = (ts.tz_localize("UTC") if ts.tzinfo is None else ts).tz_convert(STHLM)
     if ts.date() != nu.date():
         continue
-    if not stangt and nu - ts > timedelta(minutes=45):
-        continue
+    # dagens senaste kurs används alltid (efter stängning är det stängningskursen); färskhet räknas för att se om någon börs är öppen
     live[t] = round(float(s.iloc[-1]), 4)
     tid[t] = ts.strftime("%H:%M")
-
-print(f"Färska kurser: {len(live)} av {len(tickers)}")
-if len(live) < 30:
+farska = sum(1 for t, x in tid.items() if nu - pd.Timestamp(f"{nu.date()} {x}").tz_localize(STHLM) <= timedelta(minutes=45))
+print(f"Kurser från i dag: {len(live)} av {len(tickers)}, varav {farska} färska (högst 45 min)")
+if len(live) < 30 or (not stangt and farska < 30):
     print("Börsen verkar stängd eller kurserna är gamla. Bygger inte.")
     sys.exit(3)
 json.dump(live, open("divergens_live.json", "w"), indent=0)

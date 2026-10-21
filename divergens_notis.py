@@ -27,6 +27,8 @@ STATE = Path("divergens_state.json")
 ap = argparse.ArgumentParser()
 ap.add_argument("--lage", choices=["prel", "bekraftat"], required=True)
 ap.add_argument("--prov", action="store_true")
+ap.add_argument("--marknad", choices=["alla", "norden", "usa"], default="alla",
+                help="vid bekraftat: vilka börser som har stängt (norden kl 19:22, usa kl 22:22)")
 a = ap.parse_args()
 
 idag = datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d")
@@ -49,6 +51,14 @@ def rad(t, v):
 nya = []
 POS = status.pop("_positioner", [])
 BEV = status.pop("_bevakning", {})
+landof = lambda t: "NO" if t.endswith(".OL") else "DK" if t.endswith(".CO") else "SE" if t.endswith(".ST") else "US"
+def i_scope(t):
+    """Bekräftade händelser bara för börser som har stängt i den här körningen."""
+    if a.lage == "prel" or a.marknad == "alla": return True
+    return (landof(t) == "US") == (a.marknad == "usa")
+status = {t: v for t, v in status.items() if a.lage == "prel" or i_scope(t)}
+BEV = {t: v for t, v in BEV.items() if a.lage == "prel" or i_scope(t)}
+POS = [p_ for p_ in POS if a.lage == "prel" or i_scope(p_["ticker"])]
 for t, v in status.items():
     n = v.get("niv")
     if v["status"] != "Köpläge" or not n:

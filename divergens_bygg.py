@@ -42,12 +42,26 @@ NORD_INFO = pd.read_csv(DATA + "divergens_nordic_info.csv").set_index("Ticker") 
 nord_px = NORD.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index()
 NORD_AKTIER = [t for t in nord_px.columns if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL") and nord_px[t].last_valid_index() is not None
                and nord_px[t].last_valid_index() >= nord_px.index[-1] - pd.Timedelta(days=10)]
-k = pd.concat([k, NORD[NORD.Ticker.isin(NORD_AKTIER)]], ignore_index=True)
-LAND = lambda t: "NO" if t.endswith(".OL") else "DK" if t.endswith(".CO") else "SE"
-VALUTA = {"SE": "SEK", "NO": "NOK", "DK": "DKK"}
+# USA: Nasdaq-100 och Dow Jones (divergens_usa.py), samt S&P 500, Nasdaq-100- och Dow-index och USDSEK
+USA = pd.read_csv(DATA + "divergens_usa.csv", parse_dates=["Datum"]) if os.path.exists(DATA + "divergens_usa.csv") else k.iloc[:0]
+USA_INFO = pd.read_csv(DATA + "divergens_usa_info.csv").set_index("Ticker") if os.path.exists(DATA + "divergens_usa_info.csv") else pd.DataFrame(columns=["Namn", "Sektor", "Bors", "Index"])
+usa_px = USA.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index() if len(USA) else pd.DataFrame()
+USA_AKTIER = [t for t in usa_px.columns if not t.startswith("^") and "=" not in t and t in USA_INFO.index
+              and usa_px[t].last_valid_index() is not None and usa_px[t].last_valid_index() >= usa_px.index[-1] - pd.Timedelta(days=10)
+              and usa_px[t].notna().sum() >= 260]
+k = pd.concat([k, NORD[NORD.Ticker.isin(NORD_AKTIER)], USA[USA.Ticker.isin(USA_AKTIER)]], ignore_index=True)
+LAND = lambda t: "NO" if t.endswith(".OL") else "DK" if t.endswith(".CO") else "SE" if t.endswith(".ST") else "US"
+VALUTA = {"SE": "SEK", "NO": "NOK", "DK": "DKK", "US": "USD"}
+def bors(t):
+    l_ = LAND(t)
+    if l_ != "US": return {"SE": "Stockholm", "NO": "Oslo", "DK": "Köpenhamn"}[l_]
+    b_ = USA_INFO.Bors.get(t) if "Bors" in USA_INFO.columns else None
+    return b_ if isinstance(b_, str) and b_ in ("Nasdaq", "NYSE") else "Nasdaq"
 def fx_sek(land):
     """Senaste växelkurs till SEK (1 NOK = x SEK). Används bara för antal aktier vid 1000 kr risk."""
     if land == "SE": return 1.0
+    if land == "US":
+        return float(usa_px["USDSEK=X"].dropna().iloc[-1]) if "USDSEK=X" in usa_px.columns else 10.5
     p = {"NO": "NOKSEK=X", "DK": "DKKSEK=X"}[land]
     return float(nord_px[p].dropna().iloc[-1]) if p in nord_px.columns and nord_px[p].notna().any() else {"NO": 0.95, "DK": 1.45}[land]
 px = k.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index()
@@ -73,7 +87,7 @@ if LIVE:
 dates = px.index
 turn = (px * vo).rolling(60, min_periods=40).median().ffill()
 rank = turn.iloc[-1][[t for t in px.columns if t.endswith(".ST")]].rank(ascending=False)
-univ = list(rank[rank <= TOPP_N].index) + [t for t in EXTRA if t in px.columns] + NORD_AKTIER
+univ = list(rank[rank <= TOPP_N].index) + [t for t in EXTRA if t in px.columns] + NORD_AKTIER + USA_AKTIER
 univ = list(dict.fromkeys(univ))
 
 # ---------- stöddata ----------
@@ -90,13 +104,16 @@ NAMN_NORD = {"EQNR.OL": "Equinor", "DNB.OL": "DNB Bank", "NHY.OL": "Norsk Hydro"
     "BAVA.CO": "Bavarian Nordic", "FLS.CO": "FLSmidth", "ZEAL.CO": "Zealand Pharma"}
 def namn(t):
     if t in NAMN_NORD: return NAMN_NORD[t]
+    if LAND(t) == "US":
+        n = str(USA_INFO.Namn.get(t, t))
+        return re.sub(r",?\s+(Inc|Corp|Corporation|Co|Ltd|Plc|PLC|N\.V|Holdings?|Incorporated|Company)\b\.?", "", n).strip()
     if LAND(t) != "SE":
         n = str(NORD_INFO.Namn.get(t, t))
         n = n.title() if n.isupper() else n
         return re.sub(r"\s+(Asa|ASA|A/S|As|AS|Ltd|Plc|PLC|Holdings?|Group)\b\.?", "", n).strip()
     return re.sub(r"\s*\(publ\.?\)|\s+AB\b|\s+SE\b", "", str(sek.longName.get(t, t))).strip()
 def sektor(t):
-    v = NORD_INFO.Sektor.get(t) if LAND(t) != "SE" else sek.sector.get(t)
+    v = USA_INFO.Sektor.get(t) if LAND(t) == "US" else NORD_INFO.Sektor.get(t) if LAND(t) != "SE" else sek.sector.get(t)
     return v if isinstance(v, str) and v else None
 try:
     NORDNET = pd.read_csv(DATA + "nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
@@ -144,6 +161,12 @@ def land_mk(kandidater, suffix, reservnamn):
 MARKNAD = {"SE": dict(namn="OMXSPI", dd=mk_dd),
            "NO": land_mk([("^OSEBX", "OSEBX"), ("OSEBX.OL", "OSEBX"), ("^OSEAX", "OSEAX"), ("OBX.OL", "OBX")], ".OL", "Norska aktier, snitt"),
            "DK": land_mk([("^OMXC25", "OMXC25")], ".CO", "Danska aktier, snitt")}
+def _usa_dd(sym):
+    if sym not in usa_px.columns: return None
+    s_ = usa_px[sym].dropna()
+    if LIVE.get(sym): s_ = pd.concat([s_, pd.Series([float(LIVE[sym])], index=[pd.Timestamp(dt.date.today())])])
+    return float(s_.iloc[-1] / s_.rolling(250, min_periods=200).max().iloc[-1] - 1) if len(s_) >= 200 else None
+MARKNAD["US"] = dict(namn="S&P 500", dd=_usa_dd("^GSPC"))
 
 # Bredd: andel aktier som stänger under sitt 50-dagarssnitt (Sverige: alla Stockholmsaktier i kurser.csv; Norge/Danmark: aktierna i screenen)
 BREDD_GRANS, RS_GRANS, MK_GRANS = 0.70, -0.06, -0.10
@@ -152,7 +175,7 @@ def bredd(cols_):
     ok = x.iloc[-1].notna() & ma.iloc[-1].notna()
     return float((x.iloc[-1][ok] < ma.iloc[-1][ok]).mean()) if ok.sum() >= 10 else None
 for l_, cols_ in (("SE", [c_ for c_ in px.columns if c_.endswith(".ST")]), ("NO", [c_ for c_ in NORD_AKTIER if c_.endswith(".OL")]),
-                  ("DK", [c_ for c_ in NORD_AKTIER if c_.endswith(".CO")])):
+                  ("DK", [c_ for c_ in NORD_AKTIER if c_.endswith(".CO")]), ("US", USA_AKTIER)):
     MARKNAD[l_]["bredd"] = bredd(cols_)
     MARKNAD[l_]["filter"] = bool((MARKNAD[l_]["dd"] is not None and MARKNAD[l_]["dd"] <= MK_GRANS)
                                  or (MARKNAD[l_]["bredd"] is not None and MARKNAD[l_]["bredd"] > BREDD_GRANS))
@@ -160,6 +183,8 @@ for l_, cols_ in (("SE", [c_ for c_ in px.columns if c_.endswith(".ST")]), ("NO"
 def _idx_serie(l_):
     if l_ == "SE":
         s_ = mk.reindex(px.index).ffill(); sym = "^OMXSPI"
+    elif l_ == "US" and "^GSPC" in usa_px.columns:
+        s_ = usa_px["^GSPC"].reindex(px.index).ffill(); sym = "^GSPC"
     elif l_ == "DK" and "^OMXC25" in nord_px.columns:
         s_ = nord_px["^OMXC25"].reindex(px.index).ffill(); sym = "^OMXC25"
     else:
@@ -168,7 +193,7 @@ def _idx_serie(l_):
     s_ = s_.copy()
     if LIVE.get(sym) and abs(float(LIVE[sym]) / s_.iloc[-2] - 1) < 0.08: s_.iloc[-1] = float(LIVE[sym])   # skydd mot annan indexskala
     return s_.values
-INDEX = {l_: _idx_serie(l_) for l_ in ("SE", "NO", "DK")}
+INDEX = {l_: _idx_serie(l_) for l_ in ("SE", "NO", "DK", "US")}
 
 # Riktkursändringar (Placera, via riktkurs_nyhet.csv) för svenska bolag, som kontext
 try:
@@ -424,7 +449,7 @@ for t in univ:
                    + (". Att aktien slutat falla mer än index har historiskt varit ett bra tecken." if rs >= -0.01 else "."))
     if note: mot.append(note + ".")
     if land != "SE": mot.append("Insyn, blankning och pressmeddelanden finns bara för svenska bolag, och reglerna är backtestade på Stockholmsbörsen.")
-    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=MARKNAD[land]["filter"], rs=rs, nordnet=NORDNET.get(t), riktk=riktk, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
+    rows.append(dict(t=t, namn=namn(t), sektor=s, land=land, valuta=VALUTA[land], mk_filter=MARKNAD[land]["filter"], bors=bors(t), rs=rs, nordnet=NORDNET.get(t), riktk=riktk, status=status, kurs=float(now), dd=float(dd), topp=float(c[top_i]),
                      toppdag=dates[top_i].strftime("%Y-%m-%d"), rsi=float(r[-1]), K=float(K[-1]), D=float(D[-1]),
                      stoch=stoch_text(K, D), macd=macd_text(h), vol=vol, sektor_dd=sdd, ins=ins, blank=blank, rapport=rapport,
                      nyheter=nyheter, niv=niv, imorgon=imorgon, low=lowinfo, vb=vb, hist=dict(n=hn, mal=hhit, stopp=hstop), flags=flags,
@@ -436,7 +461,8 @@ from zoneinfo import ZoneInfo
 meta = dict(uppdaterad=dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M"), kursdag=dates[-1].strftime("%Y-%m-%d"),
             senast_stang=senast_stang.strftime("%Y-%m-%d"), prel=prel, mk_dd=mk_dd, mk_filter=MARKNAD["SE"]["filter"], bredd_grans=BREDD_GRANS, rs_grans=RS_GRANS,
             n_univ=len(univ), n_se=sum(1 for t in univ if LAND(t) == "SE"), n_no=sum(1 for t in univ if LAND(t) == "NO"),
-            n_dk=sum(1 for t in univ if LAND(t) == "DK"), marknad=MARKNAD, risk_kr=RISK_KR)
+            n_dk=sum(1 for t in univ if LAND(t) == "DK"), n_us=sum(1 for t in univ if LAND(t) == "US"),
+            usa_prel=(dt.datetime.now(ZoneInfo("Europe/Stockholm")).weekday() < 5 and dt.time(15, 30) <= dt.datetime.now(ZoneInfo("Europe/Stockholm")).time() <= dt.time(22, 10)), marknad=MARKNAD, risk_kr=RISK_KR)
 # ---------- mina positioner (divergens_positioner.json, läggs in med divergens_position.py) ----------
 POS = []
 try:
@@ -481,7 +507,7 @@ for t in BEV_T:
     if r_ and t in BEV_EXTRA: r_["bevakas"] = True
 meta["bevakning"] = BEV
 data = dict(meta=meta, rows=rows)
-json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"]) for r in rows} | {"_positioner": POS, "_bevakning": BEV},
+json.dump({r["t"]: dict(status=r["status"], namn=r["namn"], kurs=r["kurs"], valuta=r["valuta"], niv=r["niv"], imorgon=r["imorgon"], rs=r["rs"], land=r["land"]) for r in rows} | {"_positioner": POS, "_bevakning": BEV},
           open(UT.rsplit(".", 1)[0] + "_status.json", "w"), ensure_ascii=False, indent=1)
 mall = open(__file__.rsplit("/", 1)[0] + "/divergens_mall.html", encoding="utf-8").read()
 open(UT, "w", encoding="utf-8").write(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)))
