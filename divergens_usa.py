@@ -2,7 +2,7 @@
 Skriver divergens_usa.csv (Datum,Ticker,Stang,Volym) och divergens_usa_info.csv (Ticker,Namn,Sektor,Bors,Index,Hamtad).
 Hämtar även S&P 500, Nasdaq-100, Dow Jones och USDSEK. Fyller på från senaste datum; nya tickers från 2016-01-01.
 Indexlistorna läses från Wikipedia en gång i veckan (reservlista nedan om det misslyckas)."""
-import io, time
+import io, re, time
 from datetime import date, timedelta
 from pathlib import Path
 import pandas as pd, requests, yfinance as yf
@@ -25,10 +25,13 @@ def wiki(url, kolumner):
     print(f"  {url}: {len(r.text)} tecken, {len(tabeller)} tabeller, storlekar {[len(t) for t in tabeller][:12]}")
     for t in tabeller:
         if isinstance(t.columns, pd.MultiIndex): t.columns = [" ".join(map(str, c)) for c in t.columns]
+        if not 25 <= len(t) <= 120: continue
         for c in t.columns:
-            if any(k.lower() in str(c).lower() for k in kolumner) and 25 <= len(t) <= 120:
-                v = [str(x).strip().split()[0].replace(".", "-") for x in t[c].dropna()]
-                if sum(1 for x in v if x.replace("-", "").isalpha() and x.upper() == x and len(x) <= 6) >= 0.9 * len(v):
+            if any(k.lower() in str(c).lower() for k in kolumner):
+                v = [re.sub(r"[^A-Z.\-]", "", str(x).split()[-1].upper()).replace(".", "-") for x in t[c].dropna()]
+                v = [x for x in v if 1 <= len(x) <= 6]
+                print(f"    kandidat: kolumn {c!r}, {len(t)} rader, {len(v)} giltiga, t.ex. {v[:4]}")
+                if len(v) >= 0.8 * len(t):
                     return v
     raise ValueError("ingen tabell")
 
