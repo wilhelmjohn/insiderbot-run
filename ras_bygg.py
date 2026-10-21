@@ -90,6 +90,7 @@ def graf(j, q, i=None, slut=None):
 
 ras, signaler = [], []
 for j, t in enumerate(cols):
+    if len(NORDNET) > 100 and t not in NORDNET: continue   # bara aktier som finns på Nordnet
     c = C[:, j]
     for q in range(max(1, T - 70), T):
         if not (np.isfinite(c[q]) and np.isfinite(c[q - 1]) and np.isfinite(OMS[q, j]) and OMS[q, j] >= OMS_MIN): continue

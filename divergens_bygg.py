@@ -119,6 +119,11 @@ try:
     NORDNET = pd.read_csv(DATA + "nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
 except FileNotFoundError:
     NORDNET = {}
+# bara aktier som går att handla via Nordnet (finns i Nordnets aktielista)
+if len(NORDNET) > 100:
+    utan = [t for t in univ if t not in NORDNET]
+    if utan: print("Tas bort, saknas på Nordnet:", ", ".join(utan))
+    univ = [t for t in univ if t in NORDNET]
 tm = pd.read_csv(DATA + "ticker_map.csv")
 isin2t = tm.dropna(subset=["ISIN"]).drop_duplicates("ISIN").set_index("ISIN").Ticker
 bid2t = tm.set_index("Bolag_id").Ticker
