@@ -54,7 +54,11 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .pfchart{width:100%;height:110px;display:block;margin:4px 0 8px}
 .pftab{width:100%;border-collapse:collapse;font-size:13px}.pftab th{font-weight:500;color:var(--faint);text-align:right;padding:4px 6px}
 .pftab td{text-align:right;padding:6px;border-top:1px solid var(--line)}.pftab th:first-child,.pftab td:first-child{text-align:left}
-.posbox+.posbox{margin-top:10px}
+.vy{display:flex;flex-direction:column;gap:16px}.vy[hidden]{display:none}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tab{font:600 14px var(--f-body);background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:8px 12px;margin-bottom:-1px;cursor:pointer}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:560px){.pfsum{grid-template-columns:repeat(2,minmax(0,1fr))}.pftab .hm{display:none}}
 .posbox .nx{grid-column:1/-1;font-size:13px;color:var(--muted)}
 .chip{font:500 13px var(--f-body);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:5px 10px;border-radius:999px;cursor:pointer}
@@ -118,13 +122,22 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     </div>
     <div class="stamp" id="stamp"></div>
   </header>
+  <div class="tabs" role="tablist" aria-label="Vy">
+    <button class="tab" role="tab" id="tab-screen" aria-controls="vy-screen" aria-selected="true">Screen</button>
+    <button class="tab" role="tab" id="tab-port" aria-controls="vy-port" aria-selected="false">Positioner och uppföljning</button>
+  </div>
+  <div class="vy" id="vy-screen" role="tabpanel" aria-labelledby="tab-screen">
   <section class="market" id="market" aria-label="Marknadsläge"></section>
-  <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
-  <section class="posbox" id="pf" aria-label="Teoretisk portfölj" hidden></section>
-  <section class="posbox" id="uppf" aria-label="Uppföljning av alla signaler" hidden></section>
   <div class="chips" id="chips" role="group" aria-label="Filtrera på status"></div>
   <div class="chips" id="lander" role="group" aria-label="Filtrera på börs"></div>
   <div class="list" id="list"></div>
+  </div>
+  <div class="vy" id="vy-port" role="tabpanel" aria-labelledby="tab-port" hidden>
+  <section class="posbox" id="pos" aria-label="Mina positioner" hidden></section>
+  <section class="posbox" id="pf" aria-label="Teoretisk portfölj" hidden></section>
+  <section class="posbox" id="uppf" aria-label="Uppföljning av alla signaler" hidden></section>
+  <p class="empty" id="port-tom" hidden>Inga positioner eller signaler att följa upp än.</p>
+  </div>
   <details class="help">
     <summary>Så läser du screenen</summary>
     <dl>
@@ -206,6 +219,12 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
  <div class="pfsum num"><div><div class="lbl">Resultat, avslutade</div><div class="big ${skr>=0?"buy":"sell"}">${kr(skr)}</div></div><div><div class="lbl">Index, samma insats</div><div class="big">${kr(sidx)}</div></div><div><div class="lbl">Mot index</div><div class="big ${mot>=0?"buy":"sell"}">${kr(mot)}</div></div><div><div class="lbl">Avslutade</div><div class="big">${st.length} av ${A.length}</div><div class="lbl">${st.length?`${rr(snitt)} i snitt · ${vin} med vinst · ${A.length-st.length} öppna räknas inte`:"ingen avslutad än"}</div></div></div>
  <details><summary class="tk" style="cursor:pointer">Visa alla ${A.length} signaler</summary><table class="pftab"><thead><tr><th>Signal</th><th class="hm">Index</th><th>Resultat</th></tr></thead><tbody>${A.map(rad).join("")}</tbody></table></details>
  <p class="tk" style="margin:8px 0 0">Varje signal räknas oavsett vad screenen visar i dag (Köpläge, Avvakta eller Utgår): köp på signaldagens stängning med ${M.risk_kr.toLocaleString("sv-SE")} kr risk, halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter tio handelsdagar. Nivåerna räknas på stängningskurser och säljs på 2R- respektive 3R-kursen, stopp och tidsgräns på stängningen. Utan courtage och valutaeffekt. "Screenen i dag" visar om signalen fortfarande går att köpa; uppföljningen räknar affären vidare oavsett. Index med samma insats under samma dagar. Summan överst räknar bara avslutade affärer; öppna visas i listan med resultatet hittills.</p>`})();
+(function(){const T=[["screen","tab-screen","vy-screen"],["port","tab-port","vy-port"]];
+ if(["pos","pf","uppf"].every(id=>document.getElementById(id).hidden))document.getElementById("port-tom").hidden=false;
+ const visa=k=>{T.forEach(([n,b,v])=>{const on=n===k;document.getElementById(b).setAttribute("aria-selected",on);document.getElementById(b).tabIndex=on?0:-1;document.getElementById(v).hidden=!on});try{localStorage.setItem("divflik",k)}catch(e){}};
+ T.forEach(([n,b])=>document.getElementById(b).addEventListener("click",()=>visa(n)));
+ document.querySelector(".tabs").addEventListener("keydown",e=>{if(e.key!=="ArrowRight"&&e.key!=="ArrowLeft")return;const i=T.findIndex(([n,b])=>document.getElementById(b).getAttribute("aria-selected")==="true");const j=(i+(e.key==="ArrowRight"?1:T.length-1))%T.length;visa(T[j][0]);document.getElementById(T[j][1]).focus()});
+ let k="screen";try{k=localStorage.getItem("divflik")||"screen"}catch(e){}visa(T.some(t=>t[0]===k)?k:"screen")})();
 const counts={};DATA.rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
 let filt="Alla",land="Alla";
 const lander=document.getElementById("lander");
