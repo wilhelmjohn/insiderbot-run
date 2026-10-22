@@ -355,7 +355,9 @@ def _uppf_signaler(t, c, sigs):
         idx_kr = insats * (I[j] / I[i] - 1) if np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
         UPPF.append(dict(t=t, namn=namn(t), land=LAND(t), valuta=VALUTA[LAND(t)], datum=dates[i].strftime("%Y-%m-%d"), kurs=float(e),
                          stopp=float(e - Rk), m2=float(e + 2 * Rk), m3=float(e + 3 * Rk), halv=half, nu=float(c[j]), r=float(res), kr=round(RISK_KR * res), idx_kr=None if idx_kr is None else round(idx_kr),
-                         insats=round(insats), oppen=slut is None, dagar=int(j - i), handelser=hand))
+                         insats=round(insats), oppen=slut is None, dagar=int(j - i), handelser=hand,
+                         ser=dict(i=int(i - max(0, i - 5)), d=[dates[q].strftime("%Y-%m-%d") for q in range(max(0, i - 5), min(len(c), i + 26))],
+                                  c=[round(float(c[q]), 4) if np.isfinite(c[q]) else None for q in range(max(0, i - 5), min(len(c), i + 26))])))
 
 
 rows = []

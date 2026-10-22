@@ -2,8 +2,13 @@ name: Divergensscreen
 
 # Bygger Divergensscreen med kurser under dagen (preliminärt) eller efter stängning (bekräftat) och skickar notiser.
 # Startas av den schemalagda Claude-uppgiften (varje timme 09:15-17:15 och efter stängning), som sedan publicerar
-# divergens.html till artefakten. Inget cron här: GitHubs schemaläggning kan försena körningar 5-20 minuter.
+# divergens.html till artefakten. Dessutom körs den var 15:e minut under börsdagen (prel, notiser) så att notiserna
+# kommer tätare; sidan publiceras fortfarande bara av Claude-uppgiften. GitHubs schemaläggning kan försena körningar 5-20 minuter.
+# Tiderna är UTC och täcker 09:00-17:30 svensk tid både sommar- och vintertid; utanför börsens öppettider avbryter
+# divergens_live.py utan att bygga (inga färska kurser).
 on:
+  schedule:
+    - cron: "*/15 7-16 * * 1-5"
   workflow_dispatch:
     inputs:
       lage:
@@ -62,17 +67,17 @@ jobs:
           extra=""; [ "${{ inputs.lage }}" = "bekraftat" ] && extra="--bekraftat"
           python -u divergens_bygg.py . divergens.html --live divergens_live.json $extra
       - name: Notiser
-        if: steps.kurser.outputs.stangt != '1' && inputs.notiser
+        if: steps.kurser.outputs.stangt != '1' && (github.event_name == 'schedule' || inputs.notiser)
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python -u divergens_notis.py --lage ${{ inputs.lage }} --marknad ${{ inputs.marknad || 'alla' }}
+        run: python -u divergens_notis.py --lage ${{ inputs.lage || 'prel' }} --marknad ${{ inputs.marknad || 'alla' }}
       - name: Spara
         if: steps.kurser.outputs.stangt != '1'
         run: |
           git config user.name "insiderbot"
           git config user.email "insiderbot@users.noreply.github.com"
           for f in divergens.html divergens_status.json divergens_state.json divergens_live.json divergens_live_meta.json divergens_positioner.json; do [ -f "$f" ] && git add "$f"; done
-          git diff --cached --quiet || git commit -m "divergens: ${{ inputs.lage }} $(TZ=Europe/Stockholm date +'%F %H:%M')"
+          git diff --cached --quiet || git commit -m "divergens: ${{ inputs.lage || 'prel' }} $(TZ=Europe/Stockholm date +'%F %H:%M')"
           for i in 1 2 3 4; do
             if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
             git rebase --abort 2>/dev/null || true
