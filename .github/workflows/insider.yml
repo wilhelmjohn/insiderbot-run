@@ -112,7 +112,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
         run: python notis.py
 
       # Morgonsammanfattning (bara när morgonkörningen startas med morgonnotis=true)
@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
         run: python notis.py --morgon
 
       # Vändningssignal för knivar (volymspik + RSI över 35 + uppdag). Liten edge, se vandning.py.
@@ -129,7 +129,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
         run: python vandning.py
 
       # always(): spara det som hunnit hämtas även om steget ovan avbryts

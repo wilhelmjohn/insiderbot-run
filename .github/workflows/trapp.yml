@@ -31,7 +31,7 @@ jobs:
       - run: pip install numpy requests
       - name: Lägesändringar och push
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
         run: python -u trapp_lage.py
       - run: |
           git config user.name "github-actions"

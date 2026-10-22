@@ -38,5 +38,5 @@ jobs:
       - name: Skicka bevakningslistan
         timeout-minutes: 3
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
         run: python bevakningslista.py

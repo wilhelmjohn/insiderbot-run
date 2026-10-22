@@ -72,7 +72,7 @@ jobs:
 
       - name: Hämta dagens poster och flagga
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
           TVINGA: ${{ inputs.tvinga }}
         run: |
           if [ "${{ inputs.vandning_test }}" = "true" ]; then

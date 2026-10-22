@@ -47,7 +47,7 @@ jobs:
           python-version: "3.12"
       - run: pip install requests pandas matplotlib
       - env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
           TEXT: ${{ inputs.text }}
           TITEL: ${{ inputs.titel }}
           LANK: ${{ inputs.lank }}

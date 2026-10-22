@@ -38,7 +38,7 @@ jobs:
       - run: pip install pandas requests yfinance
       - name: Hämta
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
           SEC_UA: ${{ secrets.SEC_UA }}
         run: python -u extra_hamta.py ${{ inputs.vad }}
       - name: Spara

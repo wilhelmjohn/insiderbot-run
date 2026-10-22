@@ -11,7 +11,7 @@ I morgon kanske (efter stängning, låg prioritet): en av två stängningar öve
   om nästa dag också stänger över bottnen. En notis per botten.
 Sälj (mina positioner i divergens_positioner.json, prio 5): stoppen nådd (kolla att ordern gått), målet 2R (sälj halva,
   flytta stopp till köpkurs), målet 3R (sälj resten), 10 handelsdagar (sälj resten, bara efter stängning). En notis per händelse.
-Bevakning (alla som Närmar sig plus aktier i divergens_bevaka.json, prio 3): ändrad status, stochastic blir översåld eller ny lägsta stängning
+Bevakning (bara aktier som är eller nyss var Köpläge/Närmar sig, prio 3; aktier i divergens_bevaka.json får notis först när de når dessa lägen): ändrad status, stochastic blir översåld eller ny lägsta stängning
   på 20 dagar, jämfört med förra stängningen. Under dagen (preliminärt) och efter stängning; samma händelse högst en gång
   per dag. "Kan bli köpläge i morgon" bara efter stängning.
 Inget skickas annars. Notisen länkar till screenen (artefakten).
@@ -128,6 +128,8 @@ if BEV:
         if b["ny_botten"] and not f0.get("ny_botten"): bits.append(("ny_botten", f"ny lägsta stängning på 20 dagar (under {f(b['lagsta20'])})"))
         if a.lage == "bekraftat" and b.get("imorgon") and not f0.get("imorgon"):
             bits.append(("imorgon", f"kan bli köpläge i morgon vid stängning över {f(b['imorgon']['botten'])}"))
+        # Wilhelm 2026-10-22: bara notiser för case som är eller nyss var Köpläge/Närmar sig (inte t.ex. BOL på Avvakta)
+        if not ({b["status"], f0.get("status")} & {"Köpläge", "Närmar sig"}): bits = []
         sk = dag["skickat"].setdefault(t, [])
         bits = [(k, txt) for k, txt in bits if k not in sk]
         if bits:
