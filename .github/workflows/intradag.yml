@@ -11,10 +11,9 @@ name: Intradag
 # GitHub kör dessutom schemalagda jobb med viss fördröjning (ofta 5-20 minuter).
 on:
   schedule:
-    - cron: "*/5 7-8 * * 1-5"       # 07:00-08:55 UTC
-    - cron: "*/10 9-12 * * 1-5"     # 09:00-12:50 UTC
-    - cron: "0,10,20 13 * * 1-5"    # 13:00-13:20 UTC
-    - cron: "*/5 14-15 * * 1-5"     # 14:00-15:55 UTC
+    # Wilhelm 2026-10-22: två gånger per dag räcker (tidigare var 5-10:e minut, ca 75 körningar)
+    - cron: "0 8 * * 1-5"           # 10:00 sommartid / 09:00 vintertid
+    - cron: "0 15 * * 1-5"          # 17:00 sommartid / 16:00 vintertid
   workflow_dispatch:
     inputs:
       tvinga:
