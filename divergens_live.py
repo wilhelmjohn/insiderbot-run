@@ -27,11 +27,7 @@ try:
     tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL")]
 except FileNotFoundError:
     pass
-try:
-    tickers += [t for t in pd.read_csv("divergens_usa_info.csv", usecols=["Ticker"]).Ticker]
-except FileNotFoundError:
-    pass
-tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25", "^GSPC"]))
+tickers = list(dict.fromkeys(tickers + ["^OMXSPI", "^OMXC25"]))
 
 h = yf.download(tickers, period="2d", interval="15m", group_by="ticker", auto_adjust=False, progress=False, threads=True)
 live, tid = {}, {}

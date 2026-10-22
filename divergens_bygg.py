@@ -48,9 +48,7 @@ NORD_AKTIER = [t for t in nord_px.columns if t.endswith((".OL", ".CO")) and t no
 USA = pd.read_csv(DATA + "divergens_usa.csv", parse_dates=["Datum"]) if os.path.exists(DATA + "divergens_usa.csv") else k.iloc[:0]
 USA_INFO = pd.read_csv(DATA + "divergens_usa_info.csv").set_index("Ticker") if os.path.exists(DATA + "divergens_usa_info.csv") else pd.DataFrame(columns=["Namn", "Sektor", "Bors", "Index"])
 usa_px = USA.pivot_table(index="Datum", columns="Ticker", values="Stang").sort_index() if len(USA) else pd.DataFrame()
-USA_AKTIER = [t for t in usa_px.columns if not t.startswith("^") and "=" not in t and t in USA_INFO.index and t != "GOOG"   # GOOGL räcker
-              and usa_px[t].last_valid_index() is not None and usa_px[t].last_valid_index() >= usa_px.index[-1] - pd.Timedelta(days=10)
-              and usa_px[t].notna().sum() >= 260]
+USA_AKTIER = []   # amerikanska aktier borttagna ur screenen 2026-10-22 (bara Stockholm, Oslo och Köpenhamn)
 k = pd.concat([k, NORD[NORD.Ticker.isin(NORD_AKTIER)], USA[USA.Ticker.isin(USA_AKTIER)]], ignore_index=True)
 LAND = lambda t: "NO" if t.endswith(".OL") else "DK" if t.endswith(".CO") else "SE" if t.endswith(".ST") else "US"
 VALUTA = {"SE": "SEK", "NO": "NOK", "DK": "DKK", "US": "USD"}
@@ -174,12 +172,6 @@ def land_mk(kandidater, suffix, reservnamn):
 MARKNAD = {"SE": dict(namn="OMXSPI", dd=mk_dd),
            "NO": land_mk([("^OSEBX", "OSEBX"), ("OSEBX.OL", "OSEBX"), ("^OSEAX", "OSEAX"), ("OBX.OL", "OBX")], ".OL", "Norska aktier, snitt"),
            "DK": land_mk([("^OMXC25", "OMXC25")], ".CO", "Danska aktier, snitt")}
-def _usa_dd(sym):
-    if sym not in usa_px.columns: return None
-    s_ = usa_px[sym].dropna()
-    if LIVE.get(sym): s_ = pd.concat([s_, pd.Series([float(LIVE[sym])], index=[pd.Timestamp(dt.date.today())])])
-    return float(s_.iloc[-1] / s_.rolling(250, min_periods=200).max().iloc[-1] - 1) if len(s_) >= 200 else None
-MARKNAD["US"] = dict(namn="S&P 500", dd=_usa_dd("^GSPC"))
 
 # Bredd: andel aktier som stänger under sitt 50-dagarssnitt (Sverige: alla Stockholmsaktier i kurser.csv; Norge/Danmark: aktierna i screenen)
 BREDD_GRANS, RS_GRANS, MK_GRANS = 0.70, -0.06, -0.10
@@ -188,7 +180,7 @@ def bredd(cols_):
     ok = x.iloc[-1].notna() & ma.iloc[-1].notna()
     return float((x.iloc[-1][ok] < ma.iloc[-1][ok]).mean()) if ok.sum() >= 10 else None
 for l_, cols_ in (("SE", [c_ for c_ in px.columns if c_.endswith(".ST")]), ("NO", [c_ for c_ in NORD_AKTIER if c_.endswith(".OL")]),
-                  ("DK", [c_ for c_ in NORD_AKTIER if c_.endswith(".CO")]), ("US", USA_AKTIER)):
+                  ("DK", [c_ for c_ in NORD_AKTIER if c_.endswith(".CO")])):
     MARKNAD[l_]["bredd"] = bredd(cols_)
     MARKNAD[l_]["filter"] = bool((MARKNAD[l_]["dd"] is not None and MARKNAD[l_]["dd"] <= MK_GRANS)
                                  or (MARKNAD[l_]["bredd"] is not None and MARKNAD[l_]["bredd"] > BREDD_GRANS))
@@ -206,7 +198,7 @@ def _idx_serie(l_):
     s_ = s_.copy()
     if LIVE.get(sym) and abs(float(LIVE[sym]) / s_.iloc[-2] - 1) < 0.08: s_.iloc[-1] = float(LIVE[sym])   # skydd mot annan indexskala
     return s_.values
-INDEX = {l_: _idx_serie(l_) for l_ in ("SE", "NO", "DK", "US")}
+INDEX = {l_: _idx_serie(l_) for l_ in ("SE", "NO", "DK")}
 
 # Riktkursändringar (Placera, via riktkurs_nyhet.csv) för svenska bolag, som kontext
 try:
@@ -524,7 +516,7 @@ meta = dict(uppdaterad=dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%
             senast_stang=senast_stang.strftime("%Y-%m-%d"), prel=prel, mk_dd=mk_dd, mk_filter=MARKNAD["SE"]["filter"], bredd_grans=BREDD_GRANS, rs_grans=RS_GRANS,
             n_univ=len(univ), n_se=sum(1 for t in univ if LAND(t) == "SE"), n_no=sum(1 for t in univ if LAND(t) == "NO"),
             n_dk=sum(1 for t in univ if LAND(t) == "DK"), n_us=sum(1 for t in univ if LAND(t) == "US"),
-            usa_prel=(dt.datetime.now(ZoneInfo("Europe/Stockholm")).weekday() < 5 and dt.time(15, 30) <= dt.datetime.now(ZoneInfo("Europe/Stockholm")).time() <= dt.time(22, 10)), marknad=MARKNAD, risk_kr=RISK_KR)
+            usa_prel=False, marknad=MARKNAD, risk_kr=RISK_KR)
 # ---------- mina positioner och teoretisk portfölj (divergens_positioner.json, divergens_position.py) ----------
 POS, PORTF = [], []
 try:
