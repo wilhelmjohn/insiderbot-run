@@ -3,6 +3,7 @@
   python ras_bygg.py <ut.html>        (körs i datarepot; läser kurser.csv m.fl., skriver ras_logg.csv och <ut.html>)
 
 Regler (låsta 2026-10-20; väntetiden ändrad från 5 till 3 dagar 2026-10-23 efter backtest SB 2016-2026 av 2-10 dagar):
+  0. Bara aktier som har korta mini futures (MINI S) hos Nordnet (från 2026-10-23; nordnet_mini.csv, mini_hamta.py).
   1. Rasdag: aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI.
   2. Inga insynsköp (förvärv av aktier) i bolaget från rasdagen till och med dag 3 efter.
   3. Dag 3 efter raset: stängningen ligger under rasdagens stängning och aktien har gått sämre än index sedan rasdagen.
@@ -42,6 +43,34 @@ try:
     NORDNET = pd.read_csv("nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
 except FileNotFoundError:
     NORDNET = {}
+
+
+def _norm(x):
+    x = str(x).lower().replace("&", " ")
+    x = re.sub(r"\(publ\.?\)|\bab\b|\bser\.?\s*[abc]\b|\bplc\b|\bltd\b|[.,]", " ", x)
+    return re.sub(r"\s+", " ", x).strip()
+
+
+# Bara aktier som har korta mini futures (MINI S) hos Nordnet (Nordnet Markets), enligt nordnet_mini.csv (mini_hamta.py).
+# Namnen matchas mot sektor_info.csv; ALIAS rättar de som inte matchar, EJ utesluter utländska namnlikheter.
+MINI_ALIAS = {"Ericsson, Telefonab. L M ser. B": ["ERIC-B.ST"], "Hennes & Mauritz AB, H & M ser. B": ["HM-B.ST"],
+              "Latour, Investmentab. ser. B": ["LATO-B.ST"], "Svenska Cellulosa AB SCA ser. B": ["SCA-B.ST"],
+              "SSAB AB ser. A": ["SSAB-B.ST"], "Volvo, AB ser. A": ["VOLV-B.ST"], "Volvo, AB ser. B": ["VOLV-B.ST"],
+              "Industrivärden, AB ser. A": ["INDU-A.ST", "INDU-C.ST"], "Industrivärden, AB ser. C": ["INDU-A.ST", "INDU-C.ST"]}
+MINI_EJ = {"Humana"}   # Humana Inc (USA), inte Humana AB
+try:
+    _mini = pd.read_csv("nordnet_mini.csv")
+    _mini = _mini[(_mini.Kort > 0) & ~_mini.Underliggande.isin(MINI_EJ)]
+    _sek = pd.read_csv("sektor_info.csv"); _sek = _sek[_sek.Ticker.str.endswith(".ST")]
+    _nm = {}
+    for _t, _n in zip(_sek.Ticker, _sek.longName): _nm.setdefault(_norm(_n), []).append(_t)
+    MINI = set()
+    for _u in _mini.Underliggande:
+        MINI.update(MINI_ALIAS.get(_u) or _nm.get(_norm(_u), []))
+    MINI_HAMTAD = str(_mini.Hamtad.max())
+except FileNotFoundError:
+    MINI, MINI_HAMTAD = None, None   # ingen lista: inget filter (skrivs i loggen nedan)
+print(f"Mini futures (kort) hos Nordnet: {len(MINI) if MINI is not None else 'lista saknas'} aktier i Stockholm")
 tm = pd.read_csv("ticker_map.csv"); bid2t = tm.set_index("Bolag_id").Ticker
 kop = pd.read_csv("insiderkop.csv", parse_dates=["Publiceringsdatum"])
 kop = kop[(kop["Karaktär"] == "Förvärv") & (kop["Instrumenttyp"] == "Aktie")].copy()
@@ -105,6 +134,7 @@ def graf(j, q, i=None, slut=None):
 ras, signaler = [], []
 for j, t in enumerate(cols):
     if len(NORDNET) > 100 and t not in NORDNET: continue   # bara aktier som finns på Nordnet
+    if MINI is not None and t not in MINI: continue          # bara aktier med korta mini futures hos Nordnet
     c = C[:, j]
     for q in range(max(1, T - 70), T):
         if not (np.isfinite(c[q]) and np.isfinite(c[q - 1]) and np.isfinite(OMS[q, j]) and OMS[q, j] >= OMS_MIN): continue
@@ -142,11 +172,15 @@ logg = pd.read_csv(LOGG, dtype=str) if LOGG.exists() else pd.DataFrame(columns=[
 if "Vanta" not in logg.columns: logg["Vanta"] = "5"          # rader från före 2026-10-23 gällde 5 dagars väntan
 bytt = (logg.Vanta.astype(str) != str(VANTA)).any()
 logg = logg[logg.Vanta.astype(str) == str(VANTA)]            # annan väntetid: tas bort och räknas fram på nytt nedan
+if "Mini" not in logg.columns:                                 # 2026-10-23: bara aktier med korta mini futures hos Nordnet
+    logg["Mini"] = "True"
+    if MINI is not None:
+        bytt = bytt or (~logg.Ticker.isin(MINI)).any(); logg = logg[logg.Ticker.isin(MINI)]
 finns = set(zip(logg.Ticker, logg.Signaldag))
 nya = [s for s in signaler if pd.Timestamp(s["signaldag"]) >= START and (s["t"], s["signaldag"]) not in finns]
 if nya:
     logg = pd.concat([logg, pd.DataFrame([dict(Ticker=s["t"], Signaldag=s["signaldag"], Rasdag=s["rasdag"], Ingang=s["ingang"], Stopp=s["stopp"],
-                                               Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str, Vanta=VANTA) for s in nya])], ignore_index=True)
+                                               Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str, Vanta=VANTA, Mini=MINI is not None) for s in nya])], ignore_index=True)
 if nya or bytt:
     logg.to_csv(LOGG, index=False)
 facit = []
@@ -176,8 +210,8 @@ def sammanf(rader):
                 rel=float(np.mean(rel)) if rel else None, stopp=float(np.mean([r["ut"] == "Stopp" for r in kl])))
 
 
-meta = dict(vanta=VANTA, risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
-            n_univ=int((OMS[-1] >= OMS_MIN).sum()), alla=sammanf(facit), topp=sammanf([r for r in facit if r["mk_dd"] > -10]),
+meta = dict(vanta=VANTA, mini_n=len(MINI) if MINI is not None else None, mini_hamtad=MINI_HAMTAD, risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
+            n_univ=int(sum(1 for j_, t_ in enumerate(cols) if OMS[-1, j_] >= OMS_MIN and (MINI is None or t_ in MINI))), alla=sammanf(facit), topp=sammanf([r for r in facit if r["mk_dd"] > -10]),
             ned=sammanf([r for r in facit if r["mk_dd"] <= -10]), stora=sammanf([r for r in facit if r["top80"]]),
             sma=sammanf([r for r in facit if not r["top80"]]))
 ras.sort(key=lambda x: x["rasdag"], reverse=True)

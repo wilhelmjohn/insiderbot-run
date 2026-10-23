@@ -121,11 +121,11 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <details class="help">
     <summary>Regler och backtest</summary>
     <dl>
-      <dt>Rasdag</dt><dd>Aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI. Alla Stockholmsaktier som omsätter minst 2 MSEK per dag.</dd>
+      <dt>Rasdag</dt><dd>Aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI. Stockholmsaktier som omsätter minst 2 MSEK per dag och har korta mini futures (MINI S) hos Nordnet, så att blankningen går att göra i praktiken. Listan hämtas från Nordnet vid varje körning.</dd>
       <dt>Dag 3</dt><dd>Inga insynsköp sedan raset, kursen fortfarande under rasdagens stängning och sämre än index sedan raset. Då blankas aktien på papper till stängningskursen.</dd>
       <dt>Stopp och mål</dt><dd>Stopp 1 % över högsta stängning sedan raset (risk 1,5–8 %). Halva köps tillbaka vid 2R och stoppen flyttas till ingången, resten vid 3R, stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär. Teoretiskt 500 kr risk per affär.</dd>
       <dt>Mot index</dt><dd>Blankad aktie mot köpt OMXSPI i 10 dagar. Visar om aktien fortsätter att gå sämre än börsen, oavsett börsens riktning.</dd>
-      <dt>Backtest 2016–2026</dt><dd>Med 3 dagars väntan 674 signaler: +0,27 % per affär i snitt, +0,68 % när börsen låg nära toppen (498 st) och −0,91 % när börsen fallit minst 10 % (169 st). Mot index −0,06 %. Före 2022 −0,65 %, från 2022 +0,90 %. Väntetiden ändrades från 5 till 3 dagar 23 okt 2026 (5 dagar: 507 signaler, −0,11 %; skillnaden ligger inom slumpen). Därför testas det framåt innan någon handel.</dd>
+      <dt>Backtest 2016–2026</dt><dd>Med 3 dagars väntan 674 signaler: +0,27 % per affär i snitt, +0,68 % när börsen låg nära toppen (498 st) och −0,91 % när börsen fallit minst 10 % (169 st). Mot index −0,06 %. Före 2022 −0,65 %, från 2022 +0,90 %. Väntetiden ändrades från 5 till 3 dagar 23 okt 2026 (5 dagar: 507 signaler, −0,11 %; skillnaden ligger inom slumpen). Bara aktier med mini futures hos Nordnet i dag (79 st): 122 signaler, −0,42 % per affär, +0,11 % när börsen låg nära toppen (95 st) och −2,69 % när den fallit minst 10 % (26 st). Med 5 dagar i samma urval −0,53 % och +0,56 % nära toppen. Urvalet bygger på dagens lista, så det är en grov uppskattning bakåt. Därför testas det framåt innan någon handel.</dd>
     </dl>
   </details>
   <footer>Papperstest, ingen handel och inga råd. Kurser: dagliga stängningar. Insyn: FI.</footer>
@@ -140,7 +140,7 @@ const MON=["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","de
 const dd=s=>{if(!s)return"–";const[y,m,d]=s.split("-");return `${+d} ${MON[+m-1]}`};
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const M=DATA.meta, tk=t=>t.replace(/\.ST$/,"");
-document.getElementById("sub").textContent=`Papperstest av blankning efter ras som fortsätter · ${M.n_univ} aktier · start ${dd(M.start)}`;
+document.getElementById("sub").textContent=`Papperstest av blankning efter ras som fortsätter · ${M.n_univ} aktier${M.mini_n?" med mini futures hos Nordnet":""} · start ${dd(M.start)}`;
 document.getElementById("stamp").innerHTML=`<span class="mode prel">Papperstest</span><br>Stängning ${dd(M.kursdag)} · OMXSPI ${pc(M.mk_dd)} från topp`;
 const kr=x=>x==null?"–":(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",rr=x=>x==null?"–":(x>=0?"+":"−")+nf(Math.abs(x),2)+"R";
 const A_=M.alla,RK=(M.risk_kr||500).toLocaleString("sv-SE");
@@ -149,7 +149,7 @@ document.getElementById("sum").innerHTML=
  `<div><div class="lbl">Avslutade, resultat</div><div class="big ${A_.kr>=0?"buy":"sell"}">${A_.klara?kr(A_.kr):"–"}</div><div class="f">${A_.klara?`${A_.klara} st · ${A_.vin} med vinst · ${rr(A_.summa_R)} totalt`:"ingen avslutad än"}</div></div>`+
  `<div><div class="lbl">Öppna, hittills</div><div class="big ${M.oppna_kr>=0?"buy":"sell"}">${kr(M.oppna_kr)}</div><div class="f">${A_.n-A_.klara} öppna pappersblankningar</div></div>`+
  `<div><div class="lbl">Signaler sedan ${dd(M.start)}</div><div class="big">${A_.n}</div><div class="f">${DATA.vantar.length} ras väntar på dag ${M.vanta||3}</div></div>`+
- `<p>Varje pappersblankning har ${RK} kr risk: så många aktier att det kostar ${RK} kr om stoppen nås. ${reg("Börsen nära topp",M.topp)} · ${reg("Börsen ≥ 10 % ned",M.ned)}. Backtestet gav vinst när börsen låg nära toppen och förlust när den fallit. Ungefär 65 signaler per år väntas, så ett halvår ger en första bild men inget säkert svar.</p>`;
+ `<p>Varje pappersblankning har ${RK} kr risk: så många aktier att det kostar ${RK} kr om stoppen nås. ${reg("Börsen nära topp",M.topp)} · ${reg("Börsen ≥ 10 % ned",M.ned)}. Backtestet gav vinst när börsen låg nära toppen och förlust när den fallit. Ungefär 12 signaler per år väntas med mini futures-kravet, så det tar lång tid innan facit säger något säkert.</p>`;
 const REG={};let nid=0;
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const klick=(r,html)=>{const id="g"+(nid++);REG[id]=r;return html.replace('<div class="p">',`<div class="p klick" data-g="${id}" tabindex="0" role="button" aria-expanded="false">`)};
