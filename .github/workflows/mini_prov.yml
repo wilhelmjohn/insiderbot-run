@@ -1,0 +1,32 @@
+name: mini_prov
+# Engångsprov: hämtar Nordnets lista över mini futures (rå HTML) till datarepot hamtat/mini_prov/ för att se hur listan laddas.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - run: cp _kod/mini_prov.py .
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install requests
+      - run: python -u mini_prov.py
+      - name: Spara
+        run: |
+          git config user.name "insiderbot"
+          git config user.email "insiderbot@users.noreply.github.com"
+          git add hamtat/mini_prov
+          git diff --cached --quiet || git commit -m "mini: prov av Nordnets lista"
+          for i in 1 2 3; do git pull --rebase -X theirs --autostash origin main && git push && exit 0; sleep 7; done; exit 1
