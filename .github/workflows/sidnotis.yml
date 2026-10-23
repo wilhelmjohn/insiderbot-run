@@ -20,6 +20,10 @@ on:
         description: "Prioritet 1-5 (tomt = 2)"
         required: false
         default: ""
+      skicka:
+        description: "Skicka ändå (för enstaka pushar som användaren bett om, t.ex. Börsläget)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,7 +51,8 @@ jobs:
           python-version: "3.12"
       - run: pip install requests pandas matplotlib
       - env:
-          NTFY_TOPIC: ""   # avstängd 2026-10-22: bara Divergensscreen skickar ntfy (sätt tillbaka secrets.NTFY_TOPIC för att slå på)
+          # avstängd 2026-10-22: bara Divergensscreen skickar ntfy. Undantag: skicka=true (enstaka push som användaren bett om)
+          NTFY_TOPIC: ${{ inputs.skicka && secrets.NTFY_TOPIC || '' }}
           TEXT: ${{ inputs.text }}
           TITEL: ${{ inputs.titel }}
           LANK: ${{ inputs.lank }}
