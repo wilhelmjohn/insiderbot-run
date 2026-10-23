@@ -1,6 +1,7 @@
 name: Rasbevakning
 
 # Papperstest av blankning efter ras som fortsätter. Bygger ras.html och för loggen ras_logg.csv i datarepot.
+# Skickar notiser (ntfy) när ett ras kan blankas nästa dag och när en pappersblankning görs (ras_notis.py).
 # Startas av den schemalagda Claude-uppgiften efter stängning (som sedan publicerar sidan). Inget cron här.
 on:
   workflow_dispatch:
@@ -28,16 +29,21 @@ jobs:
         with:
           path: _kod
           persist-credentials: false
-      - run: cp _kod/ras_bygg.py _kod/ras_mall.html .
+      - run: cp _kod/ras_bygg.py _kod/ras_mall.html _kod/ras_notis.py _kod/notis.py .
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install pandas numpy
+      - run: pip install pandas numpy requests
       - run: python -u ras_bygg.py ras.html
+      - name: Notiser
+        continue-on-error: true   # ett notisfel får inte stoppa sidan och loggen
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python -u ras_notis.py ras.html
       - name: Spara
         run: |
           git config user.name "insiderbot"
           git config user.email "insiderbot@users.noreply.github.com"
-          for f in ras.html ras_logg.csv; do [ -f "$f" ] && git add "$f"; done
+          for f in ras.html ras_logg.csv ras_notis_state.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || git commit -m "ras: papperstest $(TZ=Europe/Stockholm date +'%F %H:%M')"
           for i in 1 2 3 4; do
             if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
