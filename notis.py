@@ -331,8 +331,8 @@ def main():
         print("Testmeddelande skickat.")
         return
     if a.sida is not None:
-        if not topic:
-            raise SystemExit("NTFY_TOPIC saknas.")
+        if not topic:   # avstängd med flit (tom NTFY_TOPIC i workflowen): inget fel
+            print("NTFY_TOPIC saknas: ingen sidnotis skickad."); raise SystemExit(0)
         m = {"title": a.titel or "Bevakningssidan uppdaterad", "message": a.sida or "Kvällsuppdateringen är klar.",
              "priority": a.prio or 2, "tags": ["bar_chart", "insiderbot"]}
         if a.lank:
