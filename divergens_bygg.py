@@ -325,12 +325,16 @@ def _uppf_signaler(t, c, sigs):
     """Följ varje signal sedan UPPF_START med screenens regel: köp på signaldagens stängning med RISK_KR i risk,
     halva vid 2R och stoppen till köpkursen, resten vid 3R, på stoppen eller efter 10 handelsdagar (stängningskurser).
     Index räknas med samma insats under samma dagar. En ny signal i samma aktie räknas först när förra affären är avslutad."""
-    upptagen = -1
+    upptagen, upptagen_rap = -1, -1   # rapportsignaler köps aldrig och spärrar bara andra rapportsignaler
     I = INDEX[LAND(t)]
     avg = VALUTA_AVG if LAND(t) != "SE" else 0.0
     for s in sigs:
         if dates[s["i"]] < pd.Timestamp(UPPF_START) or s["i"] <= upptagen: continue
         i, e = s["i"], s["e"]; Rk = e * s["risk"]; stop = e - Rk
+        _d0 = dates[i].normalize()
+        rap = rk[(rk.Ticker == t) & (rk.Datum >= _d0) & (rk.Datum <= _d0 + pd.Timedelta(days=RAPPORT_DAGAR))].Datum.min()
+        rap = None if pd.isna(rap) else rap.strftime("%Y-%m-%d")   # rapportregeln: aldrig Köpläge, räknas separat
+        if rap and i <= upptagen_rap: continue
         kvar, res, half, slut, hand = 1.0, 0.0, False, None, []
         avg_r = avg * e / Rk                                  # växlingsavgift vid köp, i R
         for d in range(1, 11):
@@ -348,14 +352,15 @@ def _uppf_signaler(t, c, sigs):
             if d == 10:
                 res += kvar * (x - e) / Rk; avg_r += kvar * avg * x / Rk; kvar = 0; slut = i + d; hand.append([d, ds, ("resten" if half else "allt") + " sålt efter tio dagar", float(x)])
         j = slut if slut is not None else len(c) - 1
-        upptagen = j if slut is not None else len(c)
+        if rap: upptagen_rap = j if slut is not None else len(c)
+        else: upptagen = j if slut is not None else len(c)
         if kvar > 0: res += kvar * (c[j] - e) / Rk; avg_r += kvar * avg * c[j] / Rk   # öppen: avgiften vid en försäljning nu
         res -= avg_r
         insats = RISK_KR * e / Rk
         idx_kr = insats * (I[j] / I[i] - 1) if np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
         UPPF.append(dict(t=t, namn=namn(t), land=LAND(t), valuta=VALUTA[LAND(t)], datum=dates[i].strftime("%Y-%m-%d"), kurs=float(e),
                          stopp=float(e - Rk), m2=float(e + 2 * Rk), m3=float(e + 3 * Rk), halv=half, nu=float(c[j]), r=float(res), kr=round(RISK_KR * res), idx_kr=None if idx_kr is None else round(idx_kr),
-                         insats=round(insats), oppen=slut is None, dagar=int(j - i), handelser=hand,
+                         insats=round(insats), oppen=slut is None, rapport=rap, dagar=int(j - i), handelser=hand,
                          ser=dict(i=int(i - max(0, i - 5)), d=[dates[q].strftime("%Y-%m-%d") for q in range(max(0, i - 5), min(len(c), i + 26))],
                                   c=[round(float(c[q]), 4) if np.isfinite(c[q]) else None for q in range(max(0, i - 5), min(len(c), i + 26))])))
 
@@ -566,8 +571,10 @@ if UPPF:
     _st = {(r["t"], r["niv"]["signaldag"]): r["status"] for r in rows if r["niv"]}
     for u_ in UPPF: u_["status"] = _st.get((u_["t"], u_["datum"]))
     UPPF.sort(key=lambda u_: (u_["datum"], u_["namn"]), reverse=True)
-    meta["uppfoljning"] = dict(start=UPPF_START, affarer=UPPF, kr=sum(u_["kr"] for u_ in UPPF if not u_["oppen"]),
-                               idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF if not u_["oppen"]), n=len(UPPF), stangda=sum(1 for u_ in UPPF if not u_["oppen"]))
+    meta["uppfoljning"] = dict(start=UPPF_START, affarer=UPPF, kr=sum(u_["kr"] for u_ in UPPF if not u_["oppen"] and not u_["rapport"]),
+                               idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF if not u_["oppen"] and not u_["rapport"]),
+                               n=sum(1 for u_ in UPPF if not u_["rapport"]), stangda=sum(1 for u_ in UPPF if not u_["oppen"] and not u_["rapport"]),
+                               rapport_dagar=RAPPORT_DAGAR)
 # ---------- extra bevakning (divergens_bevaka.json: {"tickers": [...]}) ----------
 try:
     BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])
