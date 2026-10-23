@@ -9,6 +9,7 @@ Regler (låsta 2026-10-20, samma som backtestet SB 2016-2026):
      Då "blankas" aktien på papper till dag 5:s stängningskurs.
   4. Stopp 1 % över högsta stängning sedan raset (risk 1,5-8 %, annars ingen affär). Köp tillbaka halva vid 2R och flytta
      stoppen till ingången, resten vid 3R, vid stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär.
+  Teoretiskt 500 kr risk per affär: antal = 500 / (stopp - ingång).
 Facit räknas bara på signaler från testets start. Resultatet mot index (blankad aktie mot köpt OMXSPI, 10 dagar) visas också.
 Ingen handel: sidan är ett test framåt i tiden.
 """
@@ -20,6 +21,7 @@ import numpy as np, pandas as pd
 UT = sys.argv[1] if len(sys.argv) > 1 else "ras.html"
 START = pd.Timestamp("2026-10-20")
 OMS_MIN, FALL, REL, VANTA, HALL, KOST = 2e6, -0.08, -0.05, 5, 10, 0.0035
+RISK_KR = 500   # teoretisk risk per affär (avståndet till stoppen), samma som Divergensscreen
 LOGG = Path("ras_logg.csv")
 
 k = pd.read_csv("kurser.csv", usecols=["Datum", "Ticker", "Stang", "Volym"], parse_dates=["Datum"])
@@ -57,26 +59,37 @@ def utfall(i, j, e, stop0):
     risk = (stop0 - e) / e
     risk = max(risk, 0.015); stop, t2, t3 = e * (1 + risk), e * (1 - 2 * risk), e * (1 - 3 * risk)
     pos, pnl, half, ut, slut = 1.0, 0.0, False, None, None
+    ds = lambda q: dates[q].strftime("%Y-%m-%d")
+    hand = [[ds(i), "Blankad", f2(e)]]
     for d in range(1, HALL + 1):
         if i + d >= T: break
         x = C[i + d, j]
         if not np.isfinite(x): continue
-        if x >= stop: pnl += pos * (1 - x / e); pos = 0; ut = "Stopp" if not half else "2R, sedan stopp på ingång"; slut = i + d; break
-        if not half and x <= t2: pnl += 0.5 * (1 - x / e); pos = 0.5; half = True; stop = e
-        elif half and x <= t3: pnl += pos * (1 - x / e); pos = 0; ut = "3R"; slut = i + d; break
+        if x >= stop:
+            pnl += pos * (1 - x / e); pos = 0; ut = "Stopp" if not half else "2R, sedan stopp på ingång"; slut = i + d
+            hand.append([ds(i + d), "Resten köpt tillbaka på stoppen (ingången)" if half else "Stoppad: allt köpt tillbaka", f2(x)]); break
+        if not half and x <= t2:
+            pnl += 0.5 * (1 - x / e); pos = 0.5; half = True; stop = e; hand.append([ds(i + d), "Halva köpt tillbaka vid 2R, stoppen flyttad till ingången", f2(x)])
+        elif half and x <= t3:
+            pnl += pos * (1 - x / e); pos = 0; ut = "3R"; slut = i + d; hand.append([ds(i + d), "Resten köpt tillbaka vid 3R", f2(x)]); break
     dagar = min(HALL, T - 1 - i)
     if slut is None and i + HALL <= T - 1:
-        pnl += pos * (1 - C[i + HALL, j] / e); ut = "Tiden ute" + (" (halva vid 2R)" if half else ""); slut = i + HALL; pos = 0
+        pnl += pos * (1 - C[i + HALL, j] / e); ut = "Tiden ute" + (" (halva vid 2R)" if half else ""); slut = i + HALL
+        hand.append([ds(i + HALL), ("Resten" if half else "Allt") + " köpt tillbaka: tio handelsdagar har gått", f2(C[i + HALL, j])]); pos = 0
+    # sista dagen i affären (tio handelsdagar efter blankningen); framtida datum räknas som vardagar
+    sista = ds(i + HALL) if i + HALL <= T - 1 else str(np.busday_offset(dates[T - 1].date(), i + HALL - (T - 1), roll="forward"))
+    antal = RISK_KR / (stop0 - e) if stop0 > e else 0
     nu = C[min(T - 1, i + HALL), j] if slut is None else C[slut, j]
     if slut is None:  # pågående: orealiserat
         pnl_nu = pnl + pos * (1 - C[T - 1, j] / e)
         return dict(klar=False, dagar=dagar, halv=half, stopp_nu=f2(stop), kurs_nu=f2(C[T - 1, j]), res=pnl_nu - KOST, R=(pnl_nu - KOST) / risk,
-                    risk=risk, m2=f2(t2), m3=f2(t3))
+                    risk=risk, m2=f2(t2), m3=f2(t3), hand=hand, sista=sista, antal=round(antal), kr=round(RISK_KR * (pnl_nu - KOST) / risk))
     rel = None
     if i + HALL <= T - 1:
         rel = -(C[i + HALL, j] / e - 1) + (I[i + HALL] / I[i] - 1) - KOST
     return dict(klar=True, slut_i=slut, dagar=slut - i, halv=half, ut=ut, slutdag=dates[slut].strftime("%Y-%m-%d"), slutkurs=f2(C[slut, j]),
-                res=pnl - KOST, R=(pnl - KOST) / risk, risk=risk, m2=f2(t2), m3=f2(t3), rel=rel)
+                res=pnl - KOST, R=(pnl - KOST) / risk, risk=risk, m2=f2(t2), m3=f2(t3), rel=rel, hand=hand, sista=sista, antal=round(antal),
+                kr=round(RISK_KR * (pnl - KOST) / risk), rel_kr=None if rel is None else round(RISK_KR * rel / risk))
 
 
 def graf(j, q, i=None, slut=None):
@@ -104,7 +117,8 @@ for j, t in enumerate(cols):
         kopdagar = set(dates[q:min(i, T - 1) + 1].normalize()) & KOP.get(t, set())
         if i > T - 1:  # väntar
             sedan = c[T - 1] / c[q] - 1; isedan = I[T - 1] / I[q] - 1
-            ras.append(dict(base, ch=graf(j, q), lage="Väntar", dag=T - 1 - q, kvar=i - (T - 1), kurs=f2(c[T - 1]), sedan=f2(100 * sedan),
+            ras.append(dict(base, ch=graf(j, q), lage="Väntar", dag=T - 1 - q, kvar=i - (T - 1),
+                            dag5=str(np.busday_offset(dates[T - 1].date(), i - (T - 1), roll="forward")), kurs=f2(c[T - 1]), sedan=f2(100 * sedan),
                             rel=f2(100 * (sedan - isedan)), insyn=bool(kopdagar),
                             just_nu=("Insynsköp: utgår" if kopdagar else "Följer villkoren" if (c[T - 1] < c[q] and sedan < isedan) else "Uppfyller inte villkoren just nu")))
             continue
@@ -119,7 +133,7 @@ for j, t in enumerate(cols):
                 lage = "Signal"
                 signaler.append(dict(base, signaldag=dates[i].strftime("%Y-%m-%d"), ingang=f2(c[i]), stopp=f2(stop0), mk_dd=f2(100 * MKDD[i]),
                                      i=i, j=j, q=q))
-        ras.append(dict(base, ch=graf(j, q, i), lage=lage, dag=T - 1 - q, kurs=f2(c[T - 1]), sedan=f2(100 * sedan), rel=f2(100 * (sedan - isedan))))
+        ras.append(dict(base, ch=graf(j, q, i), lage=lage, dag5=dates[i].strftime("%Y-%m-%d"), kurs5=f2(c[i]), dag=T - 1 - q, kurs=f2(c[T - 1]), sedan=f2(100 * sedan), rel=f2(100 * (sedan - isedan))))
 
 # logg: signaler från testets start läggs till en gång (ingångsfälten ändras aldrig), utfallet räknas om varje körning
 nu_str = dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M")
@@ -151,13 +165,13 @@ fore.sort(key=lambda x: x["signaldag"], reverse=True)
 
 def sammanf(rader):
     kl = [r for r in rader if r["klar"]]
-    if not kl: return dict(n=len(rader), klara=0)
+    if not kl: return dict(n=len(rader), klara=0, kr=0, vin=0)
     res = np.array([r["res"] for r in kl]); rel = [r["rel"] for r in kl if r.get("rel") is not None]
-    return dict(n=len(rader), klara=len(kl), snitt=float(res.mean()), traff=float((res > 0).mean()), summa_R=float(sum(r["R"] for r in kl)),
+    return dict(n=len(rader), klara=len(kl), kr=sum(r["kr"] for r in kl), vin=sum(1 for r in kl if r["kr"] > 0), snitt=float(res.mean()), traff=float((res > 0).mean()), summa_R=float(sum(r["R"] for r in kl)),
                 rel=float(np.mean(rel)) if rel else None, stopp=float(np.mean([r["ut"] == "Stopp" for r in kl])))
 
 
-meta = dict(uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
+meta = dict(risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
             n_univ=int((OMS[-1] >= OMS_MIN).sum()), alla=sammanf(facit), topp=sammanf([r for r in facit if r["mk_dd"] > -10]),
             ned=sammanf([r for r in facit if r["mk_dd"] <= -10]), stora=sammanf([r for r in facit if r["top80"]]),
             sma=sammanf([r for r in facit if not r["top80"]]))
