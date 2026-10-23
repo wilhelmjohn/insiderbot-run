@@ -122,10 +122,10 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <summary>Regler och backtest</summary>
     <dl>
       <dt>Rasdag</dt><dd>Aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI. Alla Stockholmsaktier som omsätter minst 2 MSEK per dag.</dd>
-      <dt>Dag 5</dt><dd>Inga insynsköp sedan raset, kursen fortfarande under rasdagens stängning och sämre än index sedan raset. Då blankas aktien på papper till stängningskursen.</dd>
+      <dt>Dag 3</dt><dd>Inga insynsköp sedan raset, kursen fortfarande under rasdagens stängning och sämre än index sedan raset. Då blankas aktien på papper till stängningskursen.</dd>
       <dt>Stopp och mål</dt><dd>Stopp 1 % över högsta stängning sedan raset (risk 1,5–8 %). Halva köps tillbaka vid 2R och stoppen flyttas till ingången, resten vid 3R, stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär. Teoretiskt 500 kr risk per affär.</dd>
       <dt>Mot index</dt><dd>Blankad aktie mot köpt OMXSPI i 10 dagar. Visar om aktien fortsätter att gå sämre än börsen, oavsett börsens riktning.</dd>
-      <dt>Backtest 2016–2026</dt><dd>498 signaler: −0,12 % per affär i snitt, men +0,62 % när börsen låg nära toppen (372 st) och −2,56 % när börsen fallit minst 10 % (116 st). Mot slumpvald aktie +0,8 %. Före 2022 −0,78 %, från 2022 +0,34 %. Därför testas det framåt innan någon handel.</dd>
+      <dt>Backtest 2016–2026</dt><dd>Med 3 dagars väntan 674 signaler: +0,27 % per affär i snitt, +0,68 % när börsen låg nära toppen (498 st) och −0,91 % när börsen fallit minst 10 % (169 st). Mot index −0,06 %. Före 2022 −0,65 %, från 2022 +0,90 %. Väntetiden ändrades från 5 till 3 dagar 23 okt 2026 (5 dagar: 507 signaler, −0,11 %; skillnaden ligger inom slumpen). Därför testas det framåt innan någon handel.</dd>
     </dl>
   </details>
   <footer>Papperstest, ingen handel och inga råd. Kurser: dagliga stängningar. Insyn: FI.</footer>
@@ -148,8 +148,8 @@ const reg=(l,s)=>s.klara?`${l}: ${kr(s.kr)} (${s.klara} st)`:`${l}: inga avsluta
 document.getElementById("sum").innerHTML=
  `<div><div class="lbl">Avslutade, resultat</div><div class="big ${A_.kr>=0?"buy":"sell"}">${A_.klara?kr(A_.kr):"–"}</div><div class="f">${A_.klara?`${A_.klara} st · ${A_.vin} med vinst · ${rr(A_.summa_R)} totalt`:"ingen avslutad än"}</div></div>`+
  `<div><div class="lbl">Öppna, hittills</div><div class="big ${M.oppna_kr>=0?"buy":"sell"}">${kr(M.oppna_kr)}</div><div class="f">${A_.n-A_.klara} öppna pappersblankningar</div></div>`+
- `<div><div class="lbl">Signaler sedan ${dd(M.start)}</div><div class="big">${A_.n}</div><div class="f">${DATA.vantar.length} ras väntar på dag 5</div></div>`+
- `<p>Varje pappersblankning har ${RK} kr risk: så många aktier att det kostar ${RK} kr om stoppen nås. ${reg("Börsen nära topp",M.topp)} · ${reg("Börsen ≥ 10 % ned",M.ned)}. Backtestet gav vinst när börsen låg nära toppen och förlust när den fallit. Ungefär 50 signaler per år väntas, så ett halvår ger en första bild men inget säkert svar.</p>`;
+ `<div><div class="lbl">Signaler sedan ${dd(M.start)}</div><div class="big">${A_.n}</div><div class="f">${DATA.vantar.length} ras väntar på dag ${M.vanta||3}</div></div>`+
+ `<p>Varje pappersblankning har ${RK} kr risk: så många aktier att det kostar ${RK} kr om stoppen nås. ${reg("Börsen nära topp",M.topp)} · ${reg("Börsen ≥ 10 % ned",M.ned)}. Backtestet gav vinst när börsen låg nära toppen och förlust när den fallit. Ungefär 65 signaler per år väntas, så ett halvår ger en första bild men inget säkert svar.</p>`;
 const REG={};let nid=0;
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const klick=(r,html)=>{const id="g"+(nid++);REG[id]=r;return html.replace('<div class="p">',`<div class="p klick" data-g="${id}" tabindex="0" role="button" aria-expanded="false">`)};
@@ -180,17 +180,17 @@ const rowF=r=>{const tl=(r.hand||[]).map(h=>`<div class="tk">${dd(h[0])}: ${esc(
   <div class="tk">Stopp ${nf(r.stopp0)} · 2R ${nf(r.m2)} · 3R ${nf(r.m3)}</div>${tl}${lop}</div>
   <div class="num" style="text-align:right"><div class="price ${r.kr>=0?"buy":"sell"}">${kr(r.kr)}</div><div class="muted">${rr(r.R)} · ${pc(r.res,1)}</div>${r.klar&&r.rel_kr!=null?`<div class="muted" style="font-size:12px" title="Blankad aktie mot köpt OMXSPI i hela tio dagar, oavsett när affären stängdes">aktien mot index 10 d: ${kr(r.rel_kr)}</div>`:""}</div></div>`};
 sec("open","Öppna pappersblankningar",open.map(r=>klick(r,rowF(r))),"Inga öppna just nu.");
-sec("wait","Ras som väntar på dag 5",DATA.vantar.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${NN(r)}${r.top80?"":` <span class="land">MINDRE</span>`}
+sec("wait",`Ras som väntar på dag ${M.vanta||3}`,DATA.vantar.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${NN(r)}${r.top80?"":` <span class="land">MINDRE</span>`}
   <div class="tk">Ras ${dd(r.rasdag)}: ${pp(r.fall,1)} (${pp(r.mot_index,1)} mot index)${r.orsak?" · "+esc(r.orsak):""}</div>
-  <div class="tk">${r.insyn?`<b>Blankas inte</b>: insynsköp sedan raset (släpps dag 5, ${dd(r.dag5)})`:`Dag 5 är ${dd(r.dag5)} (${r.kvar} handelsdag${r.kvar===1?"":"ar"} kvar): blankas då om villkoren håller`}</div>
+  <div class="tk">${r.insyn?`<b>Blankas inte</b>: insynsköp sedan raset (släpps dag ${M.vanta||3}, ${dd(r.dag5)})`:`Dag ${M.vanta||3} är ${dd(r.dag5)} (${r.kvar} handelsdag${r.kvar===1?"":"ar"} kvar): blankas då om villkoren håller`}</div>
   <div class="tk">${r.insyn?"":`Just nu: ${esc(r.just_nu)} · `}${pp(r.sedan,1)} sedan raset, ${pp(r.rel,1)} mot index</div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(r.kurs)}</div></div></div>`)),"Inga ras väntar.");
 sec("done","Avslutade (facit)",done.map(r=>klick(r,rowF(r))),"Inga avslutade än. Första möjliga facit kommer cirka två veckor efter start.");
 sec("fore","Signaler före start (ingår inte i facit)",DATA.fore.map(r=>klick(r,rowF(r))),"Inga.");
 sec("drop","Ras som släpptes (aldrig blankade)",DATA.slappta.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${NN(r)}
   <div class="tk">Ras ${dd(r.rasdag)}: ${pp(r.fall,1)}</div>
-  <div class="tk">Släppt ${dd(r.dag5)} (dag 5): ${esc(r.lage.replace(/^Släppt: /,""))}</div>
-  <div class="tk">Sedan raset till dag 5: ${pp(r.sedan,1)}, ${pp(r.rel,1)} mot index</div></div>
+  <div class="tk">Släppt ${dd(r.dag5)} (dag ${M.vanta||3}): ${esc(r.lage.replace(/^Släppt: /,""))}</div>
+  <div class="tk">Sedan raset till dag ${M.vanta||3}: ${pp(r.sedan,1)}, ${pp(r.rel,1)} mot index</div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(r.kurs)}</div><div class="muted" style="font-size:12px">kurs nu</div></div></div>`)),"Inga.");
 (function(){const d=done.slice().sort((a,b)=>a.slutdag<b.slutdag?-1:1);if(!d.length||!window.Chart)return;document.getElementById("cumbox").hidden=false;
  let s=0;const ys=d.map(r=>(s+=r.kr));const tick=css("--faint");

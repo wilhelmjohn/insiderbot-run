@@ -2,15 +2,16 @@
 
   python ras_bygg.py <ut.html>        (körs i datarepot; läser kurser.csv m.fl., skriver ras_logg.csv och <ut.html>)
 
-Regler (låsta 2026-10-20, samma som backtestet SB 2016-2026):
+Regler (låsta 2026-10-20; väntetiden ändrad från 5 till 3 dagar 2026-10-23 efter backtest SB 2016-2026 av 2-10 dagar):
   1. Rasdag: aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI.
-  2. Inga insynsköp (förvärv av aktier) i bolaget från rasdagen till och med dag 5 efter.
-  3. Dag 5 efter raset: stängningen ligger under rasdagens stängning och aktien har gått sämre än index sedan rasdagen.
-     Då "blankas" aktien på papper till dag 5:s stängningskurs.
+  2. Inga insynsköp (förvärv av aktier) i bolaget från rasdagen till och med dag 3 efter.
+  3. Dag 3 efter raset: stängningen ligger under rasdagens stängning och aktien har gått sämre än index sedan rasdagen.
+     Då "blankas" aktien på papper till dag 3:s stängningskurs.
   4. Stopp 1 % över högsta stängning sedan raset (risk 1,5-8 %, annars ingen affär). Köp tillbaka halva vid 2R och flytta
      stoppen till ingången, resten vid 3R, vid stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär.
   Teoretiskt 500 kr risk per affär: antal = 500 / (stopp - ingång).
-Facit räknas bara på signaler från testets start. Resultatet mot index (blankad aktie mot köpt OMXSPI, 10 dagar) visas också.
+Facit räknas bara på signaler från testets start. Loggen har kolumnen Vanta: rader loggade med en annan väntetid
+(alla rader från före 2026-10-23 saknar den och gällde 5 dagar) tas bort och signalerna sedan start räknas fram på nytt. Resultatet mot index (blankad aktie mot köpt OMXSPI, 10 dagar) visas också.
 Ingen handel: sidan är ett test framåt i tiden.
 """
 import sys, re, json, datetime as dt
@@ -20,7 +21,7 @@ import numpy as np, pandas as pd
 
 UT = sys.argv[1] if len(sys.argv) > 1 else "ras.html"
 START = pd.Timestamp("2026-10-20")
-OMS_MIN, FALL, REL, VANTA, HALL, KOST = 2e6, -0.08, -0.05, 5, 10, 0.0035
+OMS_MIN, FALL, REL, VANTA, HALL, KOST = 2e6, -0.08, -0.05, 3, 10, 0.0035
 RISK_KR = 500   # teoretisk risk per affär (avståndet till stoppen), samma som Divergensscreen
 LOGG = Path("ras_logg.csv")
 
@@ -124,7 +125,7 @@ for j, t in enumerate(cols):
             continue
         sedan = c[i] / c[q] - 1; isedan = I[i] / I[q] - 1
         if kopdagar: lage = "Släppt: insynsköp"
-        elif not (c[i] < c[q]): lage = "Släppt: över rasdagens stängning dag 5"
+        elif not (c[i] < c[q]): lage = f"Släppt: över rasdagens stängning dag {VANTA}"
         elif not (sedan < isedan): lage = "Släppt: starkare än index sedan raset"
         else:
             stop0 = np.nanmax(c[q:i + 1]) * 1.01; risk = (stop0 - c[i]) / c[i]
@@ -137,12 +138,16 @@ for j, t in enumerate(cols):
 
 # logg: signaler från testets start läggs till en gång (ingångsfälten ändras aldrig), utfallet räknas om varje körning
 nu_str = dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M")
-logg = pd.read_csv(LOGG, dtype=str) if LOGG.exists() else pd.DataFrame(columns=["Ticker", "Signaldag", "Rasdag", "Ingang", "Stopp", "Marknad_dd", "Top80", "Loggad"])
+logg = pd.read_csv(LOGG, dtype=str) if LOGG.exists() else pd.DataFrame(columns=["Ticker", "Signaldag", "Rasdag", "Ingang", "Stopp", "Marknad_dd", "Top80", "Loggad", "Vanta"])
+if "Vanta" not in logg.columns: logg["Vanta"] = "5"          # rader från före 2026-10-23 gällde 5 dagars väntan
+bytt = (logg.Vanta.astype(str) != str(VANTA)).any()
+logg = logg[logg.Vanta.astype(str) == str(VANTA)]            # annan väntetid: tas bort och räknas fram på nytt nedan
 finns = set(zip(logg.Ticker, logg.Signaldag))
 nya = [s for s in signaler if pd.Timestamp(s["signaldag"]) >= START and (s["t"], s["signaldag"]) not in finns]
 if nya:
     logg = pd.concat([logg, pd.DataFrame([dict(Ticker=s["t"], Signaldag=s["signaldag"], Rasdag=s["rasdag"], Ingang=s["ingang"], Stopp=s["stopp"],
-                                               Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str) for s in nya])], ignore_index=True)
+                                               Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str, Vanta=VANTA) for s in nya])], ignore_index=True)
+if nya or bytt:
     logg.to_csv(LOGG, index=False)
 facit = []
 for r in logg.itertuples():
@@ -171,7 +176,7 @@ def sammanf(rader):
                 rel=float(np.mean(rel)) if rel else None, stopp=float(np.mean([r["ut"] == "Stopp" for r in kl])))
 
 
-meta = dict(risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
+meta = dict(vanta=VANTA, risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
             n_univ=int((OMS[-1] >= OMS_MIN).sum()), alla=sammanf(facit), topp=sammanf([r for r in facit if r["mk_dd"] > -10]),
             ned=sammanf([r for r in facit if r["mk_dd"] <= -10]), stora=sammanf([r for r in facit if r["top80"]]),
             sma=sammanf([r for r in facit if not r["top80"]]))
@@ -180,5 +185,5 @@ data = dict(meta=meta, facit=sorted(facit, key=lambda x: x["signaldag"], reverse
             vantar=[r for r in ras if r["lage"] == "Väntar"], slappta=[r for r in ras if r["lage"].startswith("Släppt")][:25])
 mall = open(Path(__file__).resolve().parent / "ras_mall.html", encoding="utf-8").read()
 Path(UT).write_text(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)), encoding="utf-8")
-print(f"Rasbevakning: {len(facit)} signaler i facit ({len(nya)} nya), {len(data['vantar'])} väntar på dag 5, "
+print(f"Rasbevakning: {len(facit)} signaler i facit ({len(nya)} nya), {len(data['vantar'])} väntar på dag {VANTA}, "
       f"{len(fore)} signaler före start, kursdag {meta['kursdag']}, universum {meta['n_univ']} aktier")
