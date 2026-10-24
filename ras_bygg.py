@@ -51,7 +51,7 @@ def _norm(x):
     return re.sub(r"\s+", " ", x).strip()
 
 
-# Bara aktier som har korta mini futures (MINI S) hos Nordnet (Nordnet Markets), enligt nordnet_mini.csv (mini_hamta.py).
+# Bara aktier som har korta mini futures (MINI S) hos Nordnet, alla utgivare (nordnet_mini_alla.csv från mini.yml varje morgon).
 # Namnen matchas mot sektor_info.csv; ALIAS rättar de som inte matchar, EJ utesluter utländska namnlikheter.
 MINI_ALIAS = {"Ericsson, Telefonab. L M ser. B": ["ERIC-B.ST"], "Hennes & Mauritz AB, H & M ser. B": ["HM-B.ST"],
               "Latour, Investmentab. ser. B": ["LATO-B.ST"], "Svenska Cellulosa AB SCA ser. B": ["SCA-B.ST"],
@@ -59,9 +59,9 @@ MINI_ALIAS = {"Ericsson, Telefonab. L M ser. B": ["ERIC-B.ST"], "Hennes & Maurit
               "Industrivärden, AB ser. A": ["INDU-A.ST", "INDU-C.ST"], "Industrivärden, AB ser. C": ["INDU-A.ST", "INDU-C.ST"]}
 MINI_EJ = {"Humana"}   # Humana Inc (USA), inte Humana AB
 try:
-    _mini = pd.read_csv("nordnet_mini.csv")
+    _mini = pd.read_csv("nordnet_mini_alla.csv" if Path("nordnet_mini_alla.csv").exists() else "nordnet_mini.csv")   # alla utgivare hos Nordnet
     _mini = _mini[(_mini.Kort > 0) & ~_mini.Underliggande.isin(MINI_EJ)]
-    _sek = pd.read_csv("sektor_info.csv"); _sek = _sek[_sek.Ticker.str.endswith(".ST")]
+    _sek = pd.read_csv("sektor_info.csv"); _sek = _sek[_sek.Ticker.str.endswith(".ST") & ~_sek.Ticker.str.contains("PREF")]
     _nm = {}
     for _t, _n in zip(_sek.Ticker, _sek.longName): _nm.setdefault(_norm(_n), []).append(_t)
     MINI = set()

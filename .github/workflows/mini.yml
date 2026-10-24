@@ -1,7 +1,9 @@
 name: Nordnet mini futures
 # Hämtar vilka underliggande som har mini futures (Nordnet Markets) till nordnet_mini.csv i datarepot.
-# Startas manuellt; ras.yml kör samma skript före bygget.
+# Körs varje vardagsmorgon med alla utgivare (nordnet_mini_alla.csv), som Rasbevakningen använder. Kan också startas manuellt.
 on:
+  schedule:
+    - cron: "35 4 * * 1-5"
   workflow_dispatch:
     inputs:
       alla:
@@ -16,7 +18,7 @@ permissions:
 jobs:
   hamta:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,7 +35,7 @@ jobs:
       - run: pip install requests pandas
       - run: python -u mini_hamta.py
         env:
-          MINI_ALLA: ${{ inputs.alla && '1' || '0' }}
+          MINI_ALLA: ${{ (github.event_name == 'schedule' || inputs.alla) && '1' || '0' }}
       - name: Spara
         run: |
           git config user.name "insiderbot"

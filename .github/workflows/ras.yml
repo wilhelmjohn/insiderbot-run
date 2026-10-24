@@ -29,13 +29,10 @@ jobs:
         with:
           path: _kod
           persist-credentials: false
-      - run: cp _kod/ras_bygg.py _kod/ras_mall.html _kod/ras_notis.py _kod/notis.py _kod/mini_hamta.py .
+      - run: cp _kod/ras_bygg.py _kod/ras_mall.html _kod/ras_notis.py _kod/notis.py .
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install pandas numpy requests
-      - name: Mini futures hos Nordnet
-        continue-on-error: true   # misslyckas hämtningen används senaste nordnet_mini.csv
-        run: python -u mini_hamta.py
       - run: python -u ras_bygg.py ras.html
       - name: Notiser
         continue-on-error: true   # ett notisfel får inte stoppa sidan och loggen
@@ -46,7 +43,7 @@ jobs:
         run: |
           git config user.name "insiderbot"
           git config user.email "insiderbot@users.noreply.github.com"
-          for f in ras.html ras_logg.csv ras_notis_state.json nordnet_mini.csv; do [ -f "$f" ] && git add "$f"; done
+          for f in ras.html ras_logg.csv ras_notis_state.json; do [ -f "$f" ] && git add "$f"; done
           git diff --cached --quiet || git commit -m "ras: papperstest $(TZ=Europe/Stockholm date +'%F %H:%M')"
           for i in 1 2 3 4; do
             if git pull --rebase -X theirs --autostash origin main && git push; then exit 0; fi
