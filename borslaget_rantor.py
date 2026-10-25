@@ -4,7 +4,7 @@
 
 Läser borslaget.json["rantor"] (från borslaget_data.py). Använder Börslägets CSS-klasser (card, hd, grp, fact,
 pill, note) plus klasserna .rk och .kurva som definieras i sektionens egen <style>. Grafen är statisk SVG (ingen JS) med
-löptider från 3 månader till 30 år på logaritmisk skala; heldragen linje = senaste dagen, streckad = en vecka före; etiketter med
+löptider från 3 månader till 30 år på logaritmisk skala; heldragen linje = senaste dagen, streckad = en månad före; etiketter med
 ränta och dagens förändring vid 3 mån, 2, 10 och 30 år.
 Utan --text skrivs en enkel automatisk kommentar (den schemalagda uppgiften ska skriva en egen).
 """
@@ -45,15 +45,16 @@ def kurvtext(land):
 
 
 def graf():
-    """Kurvor 3 mån–30 år. Heldragen = senaste dagen, streckad = en vecka före. Etiketter med nivå och dagens förändring."""
+    """Kurvor 3 mån–30 år. Heldragen = senaste dagen, streckad = en månad före (fångar oro som byggs upp under veckor).
+    Etiketter med nivå och dagens förändring."""
     W, H, L, Rm, T, B = 440, 262, 34, 14, 30, 62
-    J = "kurva_vecka" if R["US"].get("kurva_vecka") else "kurva_manad"
+    J = "kurva_manad"
     pts = [(m, r) for land in ("US", "SE") for k in ("kurva_nu", J) for m, _, r in R[land][k] if m >= 3]
     lo, hi = math.floor(min(r for _, r in pts) * 2) / 2, math.ceil(max(r for _, r in pts) * 2) / 2
     X = lambda m: L + (math.log(m) - math.log(3)) / (math.log(360) - math.log(3)) * (W - L - Rm)
     Y = lambda r: T + (hi - r) / (hi - lo) * (H - T - B)
     o = [f'<svg class="kurva" viewBox="0 0 {W} {H}" width="100%" role="img" aria-label="Räntekurvor för USA och Sverige, 3 månader till 30 år, '
-         f'senaste dagen och en vecka före, med räntan och dagens förändring vid 3 månader, 2, 10 och 30 år">']
+         f'senaste dagen och en månad före, med räntan och dagens förändring vid 3 månader, 2, 10 och 30 år">']
     g = lo
     while g <= hi + 1e-9:
         o.append(f'<line x1="{L}" x2="{W - Rm}" y1="{Y(g):.1f}" y2="{Y(g):.1f}" style="stroke:var(--line)" stroke-dasharray="2 3"/>'
@@ -101,9 +102,9 @@ print(f'''<section class="card" aria-labelledby="h-rt">
     <div class="fact"><span class="k"><span class="flag">SE</span>Sverige <span class="pill {ps[0]}">{ps[1]}</span></span><span class="v">{pe(R["SE"]["spread_10_2"]["nu"])}</span><p class="note" style="margin-top:4px">{ts}</p></div>
   </div>
   <div class="grp">Räntekurvorna, 3 månader till 30 år</div>
-  <div class="leg"><span><i style="border-color:var(--accent)"></i>USA {dd(R["US"]["datum"])}</span><span><i class="d" style="border-color:var(--accent)"></i>USA {dd(R["US"].get("vecka_datum") or R["US"]["manad_datum"])}</span><span><i style="border-color:var(--warn)"></i>Sverige {dd(R["SE"]["datum"])}</span><span><i class="d" style="border-color:var(--warn)"></i>Sverige {dd(R["SE"].get("vecka_datum") or R["SE"]["manad_datum"])}</span></div>
+  <div class="leg"><span><i style="border-color:var(--accent)"></i>USA {dd(R["US"]["datum"])}</span><span><i class="d" style="border-color:var(--accent)"></i>USA {dd(R["US"]["manad_datum"])}</span><span><i style="border-color:var(--warn)"></i>Sverige {dd(R["SE"]["datum"])}</span><span><i class="d" style="border-color:var(--warn)"></i>Sverige {dd(R["SE"]["manad_datum"])}</span></div>
   {graf()}
-  <p class="note">Siffrorna i grafen är räntan i procent och, under den, förändringen sedan föregående handelsdag i procentenheter. Streckad linje: en vecka tidigare.</p>
+  <p class="note">Siffrorna i grafen är räntan i procent och, under den, förändringen sedan föregående handelsdag i procentenheter. Streckad linje: en månad tidigare.</p>
   <p class="note">Svenska statsräntor finns bara upp till 10 år hos Riksbanken. Den amerikanska kurvan publiceras efter stängning i New York, så på kvällen gäller den oftast föregående handelsdag.</p>
   <p>{TEXT or auto_text()}</p>
 </section>''')
