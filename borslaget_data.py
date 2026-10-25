@@ -85,7 +85,8 @@ try:
                             spread_10_2=dict(nu=spr(d0), igar=spr(d1), vecka=spr(dv), manad=spr(dm),
                                              ar_min=r2((p_[120] - p_[24]).tail(250).min()) if 24 in p_.columns else None,
                                              ar_max=r2((p_[120] - p_[24]).tail(250).max()) if 24 in p_.columns else None),
-                            kurva_nu=kurva(d0), kurva_manad=kurva(dm))
+                            vecka_datum=dv.strftime("%Y-%m-%d"),
+                            kurva_nu=kurva(d0), kurva_igar=kurva(d1), kurva_vecka=kurva(dv), kurva_manad=kurva(dm))
     rantor["kalla"] = "USA: U.S. Treasury, daily par yield curve. Sverige: Riksbanken (SWEA), statsskuldväxlar och statsobligationer."
 except Exception as e:
     rantor = dict(fel=f"{e.__class__.__name__}: {e}")
