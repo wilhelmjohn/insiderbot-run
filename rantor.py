@@ -44,6 +44,8 @@ def get(path):
     raise RuntimeError("429")
 try:
     serier = get("/Series")
+    Path("rantor_logg.txt").write_text("\n".join(f"{x.get('seriesId')}\t{x.get('shortDescription')}\t{x.get('midDescription')}\t{x.get('observationMaxDate')}"
+                                                for x in serier if re.search(r"GVB|SETB|GOV|BOND|SSVX", str(x.get('seriesId')) + str(x.get('shortDescription')), re.I)), encoding="utf-8")
     kand = {}
     for s in serier:
         sid = s.get("seriesId", ""); txt = " ".join(str(s.get(k, "")) for k in ("shortDescription", "midDescription", "longDescription"))
@@ -77,4 +79,5 @@ if rader:
     for l, g in alla.groupby("Land"):
         print(l, "senast", g.Datum.max(), {r.Lopetid: r.Ranta for r in g[g.Datum == g.Datum.max()].itertuples()})
 print("FEL:", "; ".join(fel) if fel else "inga")
+with open("rantor_logg.txt", "a", encoding="utf-8") as f: f.write("\nFEL: " + ("; ".join(fel) if fel else "inga") + "\n")
 sys.exit(1 if not rader else 0)
