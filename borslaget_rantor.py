@@ -83,7 +83,7 @@ datum = R["US"]["datum"] if R["US"]["datum"] == R["SE"]["datum"] else f'USA {dd(
 datum = dd(datum) if len(datum) == 10 else datum
 print(f'''<section class="card" aria-labelledby="h-rt">
   <style>.rk{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}@media (max-width:560px){{.rk{{grid-template-columns:1fr}}}}
-  .kurva text{{fill:var(--faint);font:12.5px var(--f-mono)}} .leg{{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}}
+  .kurva{{max-width:600px;display:block}} .kurva text{{fill:var(--faint);font:12.5px var(--f-mono)}} .leg{{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}}
   .leg i{{display:inline-block;width:18px;border-top:2.4px solid;vertical-align:middle;margin-right:5px}} .leg i.d{{border-top:1.5px dashed}}</style>
   <div class="hd"><h2 id="h-rt">Räntorna</h2><span class="note">Statsräntor, stängning {datum} · förändring i procentenheter</span></div>
   <div class="grp">USA</div>
