@@ -37,9 +37,9 @@ for ar in sorted({start.year, idag.year}):
 # ---------- Sverige ----------
 SWEA = "https://api.riksbank.se/swea/v1"
 def get(path):
-    for f in range(4):
+    for f in range(5):
         r = requests.get(SWEA + path, headers=H, timeout=60)
-        if r.status_code == 429: time.sleep(5 * (f + 1)); continue
+        if r.status_code == 429: time.sleep(20 * (f + 1)); continue
         r.raise_for_status(); return r.json()
     raise RuntimeError("429")
 try:
@@ -52,7 +52,7 @@ try:
         m = re.fullmatch(r"SEGVB(\d+)YC", sid)
         if m: kand[sid] = (f"{int(m.group(1))} år", 12 * int(m.group(1)))
         m = re.fullmatch(r"SETB(\d+)MBENCHC?", sid)
-        if m and int(m.group(1)) in (1, 3, 6, 12): kand[sid] = (f"{int(m.group(1))} mån", int(m.group(1)))
+        if m and int(m.group(1)) in (1, 3, 6): kand[sid] = (f"{int(m.group(1))} mån", int(m.group(1)))
     print("Riksbanken, serier:", ", ".join(f"{k}={v[0]}" for k, v in sorted(kand.items(), key=lambda x: x[1][1])))
     # en serie per löptid (föredra ...C, dvs. stängningsnotering)
     per_lop = {}
@@ -64,7 +64,7 @@ try:
             for o in obs:
                 if o.get("value") is not None: rader.append(dict(Datum=o["date"], Land="SE", Lopetid=namn, Manader=m, Ranta=float(o["value"])))
             print(f"  {sid}: {len(obs)} obs, senast {obs[-1]['date'] if obs else '-'}")
-            time.sleep(1.5)
+            time.sleep(13)   # Riksbankens API utan nyckel: ca 5 anrop per minut
         except Exception as e:
             fel.append(f"SE {sid}: {e.__class__.__name__}: {str(e)[:120]}")
 except Exception as e:
