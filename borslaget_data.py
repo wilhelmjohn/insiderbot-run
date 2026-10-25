@@ -91,4 +91,41 @@ try:
 except Exception as e:
     rantor = dict(fel=f"{e.__class__.__name__}: {e}")
 
-json.dump(dict(index=index, marknadsmatt=matt, rantor=rantor, divergens=divergens, ras=ras), sys.stdout, ensure_ascii=False, indent=1)
+# ---------- oromått (oro.csv från oro_data.py: HY, IG, NDX, SOX, SPX, VIX) ----------
+oro = {}
+try:
+    o = pd.read_csv(D / "oro.csv", parse_dates=["Datum"]).pivot_table(index="Datum", columns="Serie", values="Varde").sort_index()
+    def spread(k):
+        x = o[k].dropna(); t = x.index[-1]
+        fore = lambda dagar: x[x.index <= t - pd.Timedelta(days=dagar)].iloc[-1]
+        return dict(datum=t.strftime("%Y-%m-%d"), nu=r2(x.iloc[-1]), dag=r2(x.iloc[-1] - x.iloc[-2]), vecka=r2(x.iloc[-1] - fore(7)),
+                    manad=r2(x.iloc[-1] - fore(30)), fran_3m_lagsta=r2(x.iloc[-1] - x[x.index > t - pd.Timedelta(days=91)].min()),
+                    ar_min=r2(x[x.index > t - pd.Timedelta(days=365)].min()), ar_max=r2(x[x.index > t - pd.Timedelta(days=365)].max()),
+                    percentil_3ar=r2(100 * (x < x.iloc[-1]).mean()),
+                    historik=[[d.strftime("%Y-%m-%d"), r2(v)] for d, v in x[x.index > t - pd.Timedelta(days=365)].items()])
+    def rel(a, b="SPX"):
+        x = (o[a] / o[b]).dropna(); t = x.index[-1]
+        f = lambda n: r2(100 * (x.iloc[-1] / x.iloc[-1 - n] - 1))
+        h = x[x.index > t - pd.Timedelta(days=183)]
+        return dict(datum=t.strftime("%Y-%m-%d"), dag=f(1), v5=f(5), v20=f(20), v60=f(60),
+                    fran_topp_6m=r2(100 * (x.iloc[-1] / h.max() - 1)), historik=[[d.strftime("%Y-%m-%d"), r2(100 * v / h.iloc[0])] for d, v in h.items()])
+    def idx(k):
+        x = o[k].dropna()
+        return dict(datum=x.index[-1].strftime("%Y-%m-%d"), nu=r2(x.iloc[-1]), dag=r2(100 * (x.iloc[-1] / x.iloc[-2] - 1)), v20=r2(100 * (x.iloc[-1] / x.iloc[-21] - 1)),
+                    fran_arshogsta=r2(100 * (x.iloc[-1] / x.tail(252).max() - 1)))
+    oro = dict(hy=spread("HY"), ig=spread("IG"), ndx_mot_spx=rel("NDX"), sox_mot_spx=rel("SOX"), ndx=idx("NDX"), sox=idx("SOX"), spx=idx("SPX"),
+               kalla="Kreditspreadar: ICE BofA via FRED (St. Louis Fed), ett par dagars eftersläpning. Index: Yahoo Finance, stängning.")
+    hy, n20, s20 = oro["hy"], oro["ndx_mot_spx"]["v20"], oro["sox_mot_spx"]["v20"]
+    skal = []
+    if hy["nu"] >= 5 or hy["manad"] >= 1.0: niva = "Stress"; skal.append("kreditspreaden för högräntebolag är hög eller har stigit kraftigt")
+    else:
+        if hy["fran_3m_lagsta"] >= 0.4: skal.append(f"högräntespreaden har stigit {hy['fran_3m_lagsta']:.2f} p.e. från tremånaderslägsta".replace(".", ",", 1))
+        if n20 <= -4: skal.append(f"Nasdaq-100 har gått {abs(n20):.1f} % sämre än S&P 500 på 20 dagar".replace(".", ",", 1))
+        if s20 <= -8: skal.append(f"halvledarna har gått {abs(s20):.1f} % sämre än S&P 500 på 20 dagar".replace(".", ",", 1))
+        niva = "Ökande oro" if skal else "Lugnt"
+    oro["lage"] = dict(niva=niva, skal=skal, regler="Tumregler, inte backtestade: Stress om HY ≥ 5 % eller +1,0 p.e. på en månad. Ökande oro om HY +0,4 p.e. "
+                       "från tremånaderslägsta, Nasdaq-100 −4 % eller halvledare −8 % mot S&P 500 på 20 handelsdagar.")
+except Exception as e:
+    oro = dict(fel=f"{e.__class__.__name__}: {e}")
+
+json.dump(dict(index=index, marknadsmatt=matt, rantor=rantor, oro=oro, divergens=divergens, ras=ras), sys.stdout, ensure_ascii=False, indent=1)
