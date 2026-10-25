@@ -242,7 +242,7 @@ def _tlankar(htm):
         if u.startswith("/"): u = BAS + u
         if "/telegram/" in u: ut.append(u)
     return ut
-off, aldst = 0, None
+off, aldst, sedda = 0, None, set()
 while off <= 3000:
     u = BAS + "/telegram" + (f"?offset={off}" if off else "")
     if not tillaten(u): break
@@ -250,6 +250,8 @@ while off <= 3000:
     if x is None: break
     l = _tlankar(x.text)
     if not l: break
+    if not set(l) - sedda: break   # samma sida igen: offset stöds inte (längre)
+    sedda |= set(l)
     nya = 0
     for v in l:
         mm = re.search(r"-(\d{4})(\d{2})(\d{2})$", v)
@@ -270,8 +272,9 @@ def telrad(htm):
     h1 = s.find("h1")
     rub = re.sub(r"\s+", " ", h1.get_text(" ", strip=True)) if h1 else ""
     kand = []
-    rot = s.find("article") or s
-    for el in rot.find_all("p"):
+    # brödtexten: artikeln runt eller direkt efter rubriken (sidan kan ha andra artikellistor före)
+    rots = [x for x in ((h1.find_parent("article"), h1.find_next("article")) if h1 else ()) if x] or [s]
+    for el in [p_ for r_ in rots for p_ in r_.find_all("p")]:
         t = re.sub(r"\s+", " ", el.get_text(" ", strip=True))
         if t and "riktkurs" in t.lower(): kand.append(t)
         if len(kand) >= 4: break
@@ -281,9 +284,10 @@ def telrad(htm):
             if r: return r, None
     return None, (kand[0] if kand else rub)
 
+EXTRA = set(u.split("?")[0] for u in os.environ.get("EXTRA_URLS", "").split())
 for v, d in sorted(tel.items(), key=lambda z: z[1]):
-    if v in klara or not tillaten(v): continue
-    if d and not (FRAN <= d <= TILL) and v not in os.environ.get("EXTRA_URLS", ""): continue
+    if (v in klara and v not in EXTRA) or not tillaten(v): continue   # EXTRA_URLS läses om även om de redan är lästa
+    if d and not (FRAN <= d <= TILL) and v not in EXTRA: continue
     x = hamta(v)
     if x is None: continue
     r_, ej_ = telrad(x.text)
