@@ -4,6 +4,10 @@ Hittar sidorna via Placeras sitemap (artiklar/ÅÅÅÅ-MM-articles.xml), läser 
 "<analyshus> höjer/sänker riktkursen för <bolag> till X (Y)". Respekterar robots.txt, 1 anrop/sekund,
 identifierar sig. Sparar bara tolkade fakta (inte sidornas text).
 
+Läser också Placeras telegram (Finwire/Direkt) om riktkursändringar: listan placera.se/telegram (senaste ~50,
+plus offset-sidor bakåt till FRAN) och adresser i EXTRA_URLS (för att fylla i enstaka missade telegram).
+Samma ändring som redan finns (samma bolag, ny och gammal kurs inom 4 dagar) skrivs inte igen.
+
 Användning: python placera_arkiv.py [FRAN=2021-01-01] [TILL=idag]
 Skriver: riktkurs_nyhet.csv (Datum,Firma,Bolag,Ny,Gammal,Valuta,Rek,Typ,Kalla), placera_sidor.csv (bearbetade sidor),
 placera_ejtolkat.txt (rader med 'riktkurs' som tolken inte förstod), placera_logg.txt skrivs av workflowen.
@@ -58,7 +62,7 @@ P = [
  # A: "X sänker riktkursen för Y till 215 danska kronor (245), upprepar köp"
  re.compile(rf"^{FIRMA} {VERB} {RK} för (?P<bolag>.+?) till {NYV}(?: ?\((?P<gammal>{NUM})\))?(?:,? (?:upprepar|höjer|sänker|rekommendationen)\s*(?P<rek>[^.]*?))?\.?$", re.I),
  # B: "... riktkursen för Y till 360 kronor från (tidigare) 330 kronor. Rekommendationen köp upprepas."
- re.compile(rf"^{FIRMA} {VERB} {RK} för (?P<bolag>.+?) till {NYV} från (?:tidigare )?(?P<gammal>{NUM})(?: ?{VAL})?\.?(?:.*?(?:Rekommendationen|rekommendationen) (?P<rek>\w+(?: \w+)?) (?:upprepas|bibehålls))?", re.I),
+ re.compile(rf"^{FIRMA} {VERB} {RK} för (?P<bolag>.+?) till {NYV} från (?:tidigare )?(?P<gammal>{NUM})(?: ?(?P<gval>{VAL}))?\.?(?:.*?(?:Rekommendationen|rekommendationen) (?P<rek>\w+(?: \w+)?) (?:upprepas|bibehålls))?", re.I),
  # C: "X höjer Y till köp (behåll)[ på lång sikt], (ny) riktkurs 11 euro (10)"
  re.compile(rf"^{FIRMA} (?:höjer|sänker|upprepar) (?P<bolag>.+?) (?:till|med) (?P<rek>[^,(]+?)(?: \((?P<grek>[^)]+)\))?(?: på lång sikt)?,? (?:och )?(?:ny |upprepar )?riktkurs(?:en)? (?:på )?{NYV}(?: ?\((?P<gammal>{NUM})\))?", re.I),
  # D: "X höjer sin rekommendation för Y till köp från behåll. Riktkursen höjs till 700 från 560 kronor."
@@ -80,13 +84,16 @@ def rensa_bolag(b):
 def tolka(t, ctx=None):
     t = re.sub(r"\s+", " ", t.replace(" ", " ")).strip()
     t = re.sub(r"\s*[-–]\s*BN\.?$", "", t)
+    t = re.sub(r"^\(Omsändning[^)]*\)\s*", "", t)
+    t = re.sub(r"^[A-ZÅÄÖ][A-ZÅÄÖ .-]*\((?:Nyhetsbyrån )?(?:Direkt|Finwire)\)\s*", "", t)
+    t = re.sub(r"\s*\(OMS\)$", "", t)
     for i, p in enumerate(P + (PG if ctx else [])):
         m = p.match(t)
         if m:
             d = m.groupdict()
             ny, gam = tal(d["ny"]), tal(d["gammal"]) if d.get("gammal") else None
             if ny is None: return None
-            return dict(Firma=d["firma"].strip(), Bolag=rensa_bolag((d.get("bolag") or ctx).strip()), Ny=ny, Gammal=gam, Valuta=valuta(d.get("val")),
+            return dict(Firma=d["firma"].strip(), Bolag=rensa_bolag((d.get("bolag") or ctx).strip()), Ny=ny, Gammal=gam, Valuta=valuta(d.get("val") or d.get("gval")),
                         Rek=(d.get("rek") or "").strip(), Typ=("start" if re.search(r"inleder|inlett|startar|återupptar|återupptagit", t, re.I) else "rk"))
     return None
 
@@ -181,6 +188,22 @@ fej = open(EJ, "a", encoding="utf-8")
 if nytt_ut: wut.writerow(KOL)
 if nytt_sid: wsi.writerow(["Datum", "Url", "Antal"])
 antal_sid = antal_rad = 0
+# redan sparade ändringar (bolag, ny, gammal) -> datum, så att samma ändring från telegram och dagslista bara sparas en gång
+_bn = lambda b: re.sub(r"[^a-z0-9åäöæøü]", "", (b or "").lower())
+finns = {}
+if os.path.exists(UT):
+    for r_ in csv.DictReader(open(UT, encoding="utf-8")):
+        finns.setdefault((_bn(r_["Bolag"]), r_["Ny"] and float(r_["Ny"]), r_["Gammal"] and float(r_["Gammal"])), []).append(r_["Datum"])
+def dubblett(dat, x):
+    k = (_bn(x["Bolag"]), x["Ny"], "" if x["Gammal"] is None else x["Gammal"])
+    try: d0 = dt.date.fromisoformat(dat)
+    except Exception: d0 = None
+    for d in finns.get(k, []):
+        try:
+            if d0 is None or abs((dt.date.fromisoformat(d) - d0).days) <= 4: return True
+        except Exception: pass
+    finns.setdefault(k, []).append(dat)
+    return False
 for url in sorted(sidor):
     if url in klara or not tillaten(url): continue
     r = hamta(url)
@@ -200,6 +223,7 @@ for url in sorted(sidor):
         k = (x["Firma"], x["Bolag"], x["Ny"], x["Gammal"])
         if k in sett: continue
         sett.add(k)
+        if dubblett(dat, x): continue
         wut.writerow([dat, x["Firma"], x["Bolag"], x["Ny"], "" if x["Gammal"] is None else x["Gammal"], x["Valuta"], x["Rek"], x["Typ"], url])
     for t in ej[:50]: fej.write(f"{dat}\t{t}\n")
     wsi.writerow([dat, url, len(sett)])
@@ -207,5 +231,68 @@ for url in sorted(sidor):
     if antal_sid % 25 == 0:
         fut.flush(); fsi.flush(); fej.flush()
         print(f"  {antal_sid} sidor, {antal_rad} rader (senast {dat})", flush=True)
+
+# --- telegram (Finwire/Direkt): en ändring per sida, rubrik och ingress
+TSLUG = re.compile(r"/telegram/[^\"'?#\s<>]*(?:riktkurs|kopstampl|saljstampl)[^\"'?#\s<>]*-(\d{8})$", re.I)
+tel = {}
+def _tlankar(htm):
+    ut = []
+    for a in BeautifulSoup(htm, "lxml").find_all("a", href=True):
+        u = a["href"].split("?")[0].split("#")[0]
+        if u.startswith("/"): u = BAS + u
+        if "/telegram/" in u: ut.append(u)
+    return ut
+off, aldst = 0, None
+while off <= 3000:
+    u = BAS + "/telegram" + (f"?offset={off}" if off else "")
+    if not tillaten(u): break
+    x = hamta(u)
+    if x is None: break
+    l = _tlankar(x.text)
+    if not l: break
+    nya = 0
+    for v in l:
+        mm = re.search(r"-(\d{4})(\d{2})(\d{2})$", v)
+        if not mm: continue
+        d = f"{mm.group(1)}-{mm.group(2)}-{mm.group(3)}"
+        aldst = d if aldst is None or d < aldst else aldst
+        if TSLUG.search(v) and v not in tel: tel[v] = d; nya += 1
+    print(f"telegram offset {off}: {len(l)} länkar, {nya} riktkurs, äldst {aldst}", flush=True)
+    if aldst and aldst < FRAN: break
+    off += 50
+for v in os.environ.get("EXTRA_URLS", "").split():
+    mm = re.search(r"-(\d{4})(\d{2})(\d{2})$", v.split("?")[0])
+    tel[v.split("?")[0]] = f"{mm.group(1)}-{mm.group(2)}-{mm.group(3)}" if mm else ""
+print("telegram att läsa:", len([v for v in tel if v not in klara]), flush=True)
+
+def telrad(htm):
+    s = BeautifulSoup(htm, "lxml")
+    h1 = s.find("h1")
+    rub = re.sub(r"\s+", " ", h1.get_text(" ", strip=True)) if h1 else ""
+    kand = []
+    rot = s.find("article") or s
+    for el in rot.find_all("p"):
+        t = re.sub(r"\s+", " ", el.get_text(" ", strip=True))
+        if t and "riktkurs" in t.lower(): kand.append(t)
+        if len(kand) >= 4: break
+    for t in [rub] + kand:
+        for del_ in [t] + re.split(r"(?<=\.)\s+(?=[A-ZÅÄÖ])", t)[:2]:
+            r = tolka(del_)
+            if r: return r, None
+    return None, (kand[0] if kand else rub)
+
+for v, d in sorted(tel.items(), key=lambda z: z[1]):
+    if v in klara or not tillaten(v): continue
+    if d and not (FRAN <= d <= TILL) and v not in os.environ.get("EXTRA_URLS", ""): continue
+    x = hamta(v)
+    if x is None: continue
+    r_, ej_ = telrad(x.text)
+    n_ = 0
+    if r_ and not dubblett(d, r_):
+        wut.writerow([d, r_["Firma"], r_["Bolag"], r_["Ny"], "" if r_["Gammal"] is None else r_["Gammal"], r_["Valuta"], r_["Rek"], r_["Typ"], v]); n_ = 1
+    elif ej_ and not r_:
+        fej.write(f"{d}\t[telegram] {ej_[:300]}\n")
+    wsi.writerow([d, v, n_ if r_ else 0])
+    antal_sid += 1; antal_rad += n_
 fut.close(); fsi.close(); fej.close()
 print(f"KLAR: {antal_sid} nya sidor, {antal_rad} nya rader, {FRAN}..{TILL}")

@@ -215,6 +215,8 @@ def _match(b_):
     c_ = [t_ for n_, t_ in _n2t.items() if nb and (n_.startswith(nb) or nb.startswith(n_)) and min(len(n_), len(nb)) >= 4]
     return c_[0] if len(c_) == 1 else None
 rkn = rkn.assign(Ticker=rkn.Bolag.map(_match)) if len(rkn) else rkn.assign(Ticker=None)
+# samma ändring kan finnas både som telegram och i dagslistan: behåll den första
+if len(rkn): rkn = rkn.sort_values("Datum").drop_duplicates(subset=["Ticker", "Ny", "Gammal"], keep="first")
 
 # ---------- indikatorer ----------
 def rsi(c, n=9):
