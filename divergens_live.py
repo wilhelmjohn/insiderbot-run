@@ -21,7 +21,7 @@ k = pd.read_csv("kurser.csv", usecols=["Datum", "Ticker", "Stang", "Volym"])
 k = k[k.Ticker.str.endswith(".ST") & (k.Datum >= (nu - timedelta(days=120)).strftime("%Y-%m-%d"))]
 k["oms"] = k.Stang * k.Volym
 oms = k.groupby("Ticker").oms.median().sort_values(ascending=False)
-tickers = list(oms.index[:100]) + ["LYKO-A.ST", "DYVOX.ST"]
+tickers = list(oms.index[:100]) + ["LYKO-A.ST"]
 try:
     nord = pd.read_csv("divergens_nordic.csv", usecols=["Ticker"]).Ticker.unique()
     tickers += [t for t in nord if t.endswith((".OL", ".CO")) and t not in ("OBX.OL", "OSEBX.OL")]

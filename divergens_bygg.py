@@ -32,7 +32,7 @@ RISK_KR = 500
 VALUTA_AVG = 0.005               # Nordnets valutaväxlingsavgift, dras vid köp och sälj i aktier som inte handlas i SEK
 UPPF_START = "2026-10-12"         # uppföljning: alla signaler från och med den här dagen, oavsett status
 MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
-EXTRA = ["LYKO-A.ST", "DYVOX.ST"]
+EXTRA = ["LYKO-A.ST"]
 TOPP_N = 80
 
 # ---------- kurser ----------
