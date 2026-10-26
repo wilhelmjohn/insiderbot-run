@@ -367,7 +367,7 @@ def _uppf_signaler(t, c, sigs):
                                   c=[round(float(c[q]), 4) if np.isfinite(c[q]) else None for q in range(max(0, i - 5), min(len(c), i + 26))])))
 
 
-rows = []
+rows, SIGS = [], {}
 for t in univ:
     c, r, K, D, h, hi250 = ind(t)
     if not np.isfinite(c[-1]) or not np.isfinite(hi250[-1]): continue
@@ -375,6 +375,7 @@ for t in univ:
     top_i = len(c) - 250 + int(np.nanargmax(c[-250:]))
     sigs = s1_signals(c, r, K, hi250)
     _uppf_signaler(t, c, sigs)
+    SIGS[t] = sigs
     status, niv, pair, note, imorgon = None, None, None, "", None
     last = sigs[-1] if sigs else None
     if last and last["i"] >= T - 8:
@@ -577,6 +578,97 @@ if UPPF:
                                idx_kr=sum(u_["idx_kr"] or 0 for u_ in UPPF if not u_["oppen"] and not u_["rapport"]),
                                n=sum(1 for u_ in UPPF if not u_["rapport"]), stangda=sum(1 for u_ in UPPF if not u_["oppen"] and not u_["rapport"]),
                                rapport_dagar=RAPPORT_DAGAR)
+# ---------- facit: varje signal loggas den dag screenen ger den och ändras aldrig (divergens_facit.json) ----------
+# Till skillnad från uppföljningen ovan (som räknas om från kurserna varje gång) sparas signalen med köpkurs, stopp, mål och
+# status som de var den dagen. Bara utfallet fylls i efter hand, och när affären är avslutad låses det också.
+# Loggas bara i körningen efter stängning (--bekraftat). Varje signal är en egen affär, även om aktien redan har en öppen.
+FACIT_F = DATA + "divergens_facit.json"
+try:
+    FACIT = json.load(open(FACIT_F, encoding="utf-8"))
+except FileNotFoundError:
+    FACIT = None
+
+
+def _facit_utfall(f):
+    """Följ en loggad signal från loggdagens stängning med screenens regel, på de loggade nivåerna."""
+    t = f["t"]
+    if t not in px.columns or pd.Timestamp(f["loggdag"]) not in dates: return f.get("utfall")
+    c = px[t].values.astype(float); i = dates.get_loc(pd.Timestamp(f["loggdag"]))
+    e, stop = float(f["kop"]), float(f["stopp"]); Rk = (float(f["m2"]) - e) / 2
+    if not Rk > 0: return f.get("utfall")
+    avg = VALUTA_AVG if f["land"] != "SE" else 0.0
+    kvar, res, half, slut, hand = 1.0, 0.0, False, None, []
+    avg_r = avg * e / Rk
+    for d in range(1, 11):
+        if i + d >= len(c): break
+        x = c[i + d]
+        if not np.isfinite(x): continue
+        ds = dates[i + d].strftime("%Y-%m-%d")
+        if not half and x >= e + 2 * Rk:
+            res += 1.0; avg_r += 0.5 * avg * (e + 2 * Rk) / Rk; kvar = 0.5; half = True; stop = e; hand.append([d, ds, "halva såld vid 2R", round(e + 2 * Rk, 4)])
+        if half and x >= e + 3 * Rk:
+            res += kvar * 3; avg_r += kvar * avg * (e + 3 * Rk) / Rk; kvar = 0; slut = i + d; hand.append([d, ds, "resten såld vid 3R", round(e + 3 * Rk, 4)]); break
+        if x <= stop:
+            res += kvar * (x - e) / Rk; avg_r += kvar * avg * x / Rk; kvar = 0; slut = i + d
+            hand.append([d, ds, "resten stoppad på köpkursen" if half else "stoppad, allt sålt", round(float(x), 4)]); break
+        if d == 10:
+            res += kvar * (x - e) / Rk; avg_r += kvar * avg * x / Rk; kvar = 0; slut = i + d; hand.append([d, ds, ("resten" if half else "allt") + " sålt efter tio dagar", round(float(x), 4)])
+    j = slut if slut is not None else len(c) - 1
+    if kvar > 0 and np.isfinite(c[j]): res += kvar * (c[j] - e) / Rk; avg_r += kvar * avg * c[j] / Rk
+    res -= avg_r
+    I = INDEX.get(f["land"])
+    insats = RISK_KR * e / Rk
+    idx_kr = round(insats * (I[j] / I[i] - 1)) if I is not None and np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
+    return dict(oppen=slut is None, dagar=int(j - i), halv=half, nu=round(float(c[j]), 4), r=round(float(res), 3), kr=round(RISK_KR * res),
+                idx_kr=idx_kr, slutdag=dates[slut].strftime("%Y-%m-%d") if slut is not None else None, handelser=hand)
+
+
+if "--bekraftat" in sys.argv:
+    kd = dates[-1].strftime("%Y-%m-%d")
+    nu_ts = dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M")
+    if FACIT is None:
+        # första gången: signalerna sedan UPPF_START räknade i efterhand (märkta, status okänd)
+        FACIT = dict(start=kd, signaler=[])
+        for t_, sg in SIGS.items():
+            for s_ in sg:
+                sd = dates[s_["i"]].strftime("%Y-%m-%d")
+                if sd < UPPF_START or sd >= kd: continue
+                e_ = float(s_["e"]); Rk_ = e_ * s_["risk"]; d0_ = dates[s_["i"]].normalize()
+                rap_ = rk[(rk.Ticker == t_) & (rk.Datum >= d0_) & (rk.Datum <= d0_ + pd.Timedelta(days=RAPPORT_DAGAR))].Datum.min()
+                FACIT["signaler"].append(dict(id=f"{t_}|{sd}", t=t_, namn=namn(t_), land=LAND(t_), valuta=VALUTA[LAND(t_)], signaldag=sd, loggdag=sd,
+                                              loggad=nu_ts, kalla="efterhand", status=None, not_="", signalkurs=e_, kop=e_, stopp=e_ - Rk_,
+                                              m2=e_ + 2 * Rk_, m3=e_ + 3 * Rk_, risk=s_["risk"], antal=None,
+                                              rapport=None if pd.isna(rap_) else rap_.strftime("%Y-%m-%d"), rs=None))
+    finns = {f["id"] for f in FACIT["signaler"]}
+    for r_ in rows:
+        n_ = r_["niv"]
+        if not n_: continue
+        if not (r_["status"] in ("Köpläge", "Avvakta") or n_["signaldag"] == kd): continue
+        id_ = f"{r_['t']}|{n_['signaldag']}"
+        if id_ in finns: continue
+        finns.add(id_)
+        FACIT["signaler"].append(dict(id=id_, t=r_["t"], namn=r_["namn"], land=r_["land"], valuta=r_["valuta"], signaldag=n_["signaldag"], loggdag=kd,
+                                      loggad=nu_ts, kalla="screen", status=r_["status"], not_=r_["not_"], signalkurs=float(n_["signalkurs"]),
+                                      kop=float(n_["kop"]), stopp=float(n_["stopp"]), m2=float(n_["m2"]), m3=float(n_["m3"]), risk=float(n_["risk"]),
+                                      antal=int(n_["antal"]), rapport=r_["rapport"], rs=r_["rs"]))
+    for f in FACIT["signaler"]:
+        if f.get("utfall") and not f["utfall"]["oppen"]: continue   # avslutad: låst
+        f["utfall"] = _facit_utfall(f)
+    FACIT["signaler"].sort(key=lambda f: (f["loggdag"], f["namn"]))
+    FACIT["uppdaterad"] = nu_ts; FACIT["kursdag"] = kd
+    json.dump(FACIT, open(FACIT_F, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"Facit: {len(FACIT['signaler'])} signaler i {FACIT_F}")
+if FACIT:
+    def _sum(fl):
+        st_ = [f for f in fl if f.get("utfall") and not f["utfall"]["oppen"]]
+        return dict(n=len(fl), stangda=len(st_), kr=sum(f["utfall"]["kr"] for f in st_), idx_kr=sum(f["utfall"]["idx_kr"] or 0 for f in st_),
+                    vinst=sum(1 for f in st_ if f["utfall"]["kr"] > 0), r_snitt=(sum(f["utfall"]["r"] for f in st_) / len(st_)) if st_ else None)
+    S_ = FACIT["signaler"]
+    meta["facit"] = dict(start=FACIT.get("start"), uppdaterad=FACIT.get("uppdaterad"), signaler=list(reversed(S_)),
+                         koplage=_sum([f for f in S_ if f["status"] == "Köpläge"]), avvakta=_sum([f for f in S_ if f["status"] == "Avvakta"]),
+                         ovriga=_sum([f for f in S_ if f["kalla"] == "screen" and f["status"] not in ("Köpläge", "Avvakta")]),
+                         efterhand=_sum([f for f in S_ if f["kalla"] == "efterhand" and not f["rapport"]]),
+                         efterhand_rapport=_sum([f for f in S_ if f["kalla"] == "efterhand" and f["rapport"]]))
 # ---------- extra bevakning (divergens_bevaka.json: {"tickers": [...]}) ----------
 try:
     BEV_T = json.load(open(DATA + "divergens_bevaka.json", encoding="utf-8")).get("tickers", [])

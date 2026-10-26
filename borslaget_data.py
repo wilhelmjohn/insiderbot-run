@@ -4,7 +4,7 @@
 
 Innehåll: index (dag, vecka, i år, från årshögsta) för Stockholm, Oslo, Köpenhamn och USA (USA är gårdagens stängning
 i datan: dagens tal hämtas från webben), valutor, marknadsmåttet (-10..+10) med 30 dagars historik, orolig regim,
-avstånd till MA50/MA200/20-dagarshögsta, Divergensscreen (köpläge, närmar sig, i morgon, positioner) och Rasbevakning
+avstånd till MA50/MA200/20-dagarshögsta, Divergensscreen (köpläge, närmar sig, i morgon, positioner, avslut i dag, facit) och Rasbevakning
 (facit, nya ras, väntar), statsräntor för USA och Sverige (nivå, dagens förändring, 10-2-årsskillnad, kurvan i dag och
 för en månad sedan; rantor.csv från rantor.py). Skriver inget till repot.
 """
@@ -52,6 +52,28 @@ divergens = dict(
     narmar_sig=[dict(t=k, namn=v["namn"], land=v["land"], valuta=v["valuta"], kurs=r2(v["kurs"]), vantar_pa=bev.get(k, {}).get("not_", ""))
                 for k, v in aktier.items() if v["status"] == "Närmar sig"],
     positioner=s.get("_positioner", []))
+# avslut i dag (egna positioner, sälj med dagens datum) och facit (divergens_facit.json) ur Divergensscreens sida
+try:
+    _h = (D / "divergens.html").read_text(encoding="utf-8")
+    DM = json.JSONDecoder().raw_decode(_h[_h.index('{"meta"'):])[0]["meta"]
+except (FileNotFoundError, ValueError):
+    DM = {}
+kd = DM.get("kursdag")
+divergens["kursdag"] = kd
+divergens["avslut_idag"] = [dict(t=a["ticker"], namn=a["namn"], valuta=a["valuta"], kop=r2(a["kurs"]), datum=a["datum"],
+                                 salt_idag=[x for x in a["salj"] if x["datum"] == kd], stangd=a["stangd"], kvar=a["kvar"],
+                                 resultat_kr=a["real"] + a["oreal"], r=r2(a["r"]))
+                            for a in (DM.get("portfolj") or {}).get("affarer", []) if any(x["datum"] == kd for x in a["salj"])]
+_F = DM.get("facit")
+if _F:
+    _u = lambda f: f.get("utfall") or {}
+    divergens["facit"] = dict(start=_F["start"], koplage=_F["koplage"], avvakta=_F["avvakta"], efterhand=_F["efterhand"], efterhand_rapport=_F.get("efterhand_rapport"),
+                              avslutade_idag=[dict(t=f["t"], namn=f["namn"], signaldag=f["signaldag"], status=f["status"] or "i efterhand",
+                                                   kop=r2(f["kop"]), r=_u(f).get("r"), kr=_u(f).get("kr"), idx_kr=_u(f).get("idx_kr"),
+                                                   ut=(_u(f).get("handelser") or [[None, None, ""]])[-1][2])
+                                              for f in _F["signaler"] if _u(f).get("slutdag") == kd],
+                              loggade_idag=[dict(t=f["t"], namn=f["namn"], status=f["status"], kop=r2(f["kop"])) for f in _F["signaler"]
+                                            if f["loggdag"] == kd and f["kalla"] == "screen"])
 
 h = (D / "ras.html").read_text(encoding="utf-8")
 R = json.loads(re.search(r"const DATA=(\{.*?\});\n", h).group(1))
