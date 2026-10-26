@@ -7,7 +7,7 @@ import pandas as pd, yfinance as yf
 k = pd.read_csv("kurser.csv", usecols=["Datum", "Ticker", "Stang", "Volym"])
 k = k[k.Ticker.str.endswith(".ST") & (k.Datum >= (date.today() - timedelta(days=120)).isoformat())]
 k["oms"] = k.Stang * k.Volym
-tickers = list(k.groupby("Ticker").oms.median().sort_values(ascending=False).index[:100]) + ["LYKO-A.ST"]
+tickers = list(k.groupby("Ticker").oms.median().sort_values(ascending=False).index[:100]) + ["LYKO-A.ST", "DYVOX.ST"]
 for f, kol in (("divergens_nordic_info.csv", "Ticker"), ("divergens_usa_info.csv", "Ticker")):
     try: tickers += list(pd.read_csv(f)[kol])
     except FileNotFoundError: pass
