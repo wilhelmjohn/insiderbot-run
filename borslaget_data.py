@@ -5,7 +5,7 @@
 Innehåll: index (dag, vecka, i år, från årshögsta) för Stockholm, Oslo, Köpenhamn och USA (USA är gårdagens stängning
 i datan: dagens tal hämtas från webben), valutor, marknadsmåttet (-10..+10) med 30 dagars historik, orolig regim,
 avstånd till MA50/MA200/20-dagarshögsta, Divergensscreen (köpläge, närmar sig, i morgon, positioner, avslut i dag, facit) och Rasbevakning
-(facit, nya ras, väntar), statsräntor för USA och Sverige (nivå, dagens förändring, 10-2-årsskillnad, kurvan i dag och
+(facit, nya ras, väntar), alla affärer som stängdes i dag (avslut_idag) och delförsäljningar (delsalj_idag), statsräntor för USA och Sverige (nivå, dagens förändring, 10-2-årsskillnad, kurvan i dag och
 för en månad sedan; rantor.csv från rantor.py). Skriver inget till repot.
 """
 import sys, json, re
@@ -86,6 +86,30 @@ ras["nya_ras_idag"] = [v for v in ras["vantar"] if v["rasdag"] == ras["meta"]["k
 ras["nya_signaler_idag"] = [f for f in ras["facit"] if f["signaldag"] == ras["meta"]["kursdag"]]
 ras["avslutade_idag"] = [f for f in ras["facit"] if f.get("slutdag") == ras["meta"]["kursdag"]]
 
+# ---------- alla affärer som stängdes i dag: Divergens facit, Rasbevakningens papperstest och egna positioner ----------
+avslut = []
+for f in (_F or {}).get("signaler", []):
+    u = f.get("utfall") or {}
+    if u.get("slutdag") != kd: continue
+    h = (u.get("handelser") or [[None, None, "", None]])[-1]
+    avslut.append(dict(kalla="Divergens" if f["kalla"] == "screen" else "Divergens, räknad i efterhand", t=f["t"], namn=f["namn"],
+                       status=f["status"], rapport=f.get("rapport"), ingang_dag=f["loggdag"], ingang=r2(f["kop"]), ut=h[2], ut_kurs=r2(h[3]),
+                       kr=u.get("kr"), r=r2(u.get("r")), idx_kr=u.get("idx_kr"), valuta=f["valuta"]))
+for f in ras["avslutade_idag"]:
+    avslut.append(dict(kalla="Rasbevakning (blankning på papper)", t=f["t"], namn=f["namn"], ingang_dag=f["signaldag"], ingang=r2(f["ingang"]),
+                       ut=f["ut"], ut_kurs=r2(f["slutkurs"]), kr=f["kr"], procent=r2(100 * f["res"]) if f.get("res") is not None else None))
+for a in divergens["avslut_idag"]:
+    if not a["stangd"]: continue
+    sx = a["salt_idag"][-1]
+    avslut.append(dict(kalla="Din position", t=a["t"], namn=a["namn"], ingang_dag=a["datum"], ingang=a["kop"], ut=sx.get("anledning") or "såld",
+                       ut_kurs=r2(sx["kurs"]), kr=a["resultat_kr"], r=a["r"], valuta=a["valuta"]))
+# delförsäljningar i dag (halva vid 2R) i affärer som fortfarande är öppna
+delsalj = [dict(kalla="Divergens" if f["kalla"] == "screen" else "Divergens, räknad i efterhand", t=f["t"], namn=f["namn"], ut=h[2], ut_kurs=r2(h[3]))
+           for f in (_F or {}).get("signaler", []) if (f.get("utfall") or {}).get("oppen")
+           for h in f["utfall"].get("handelser", []) if h[1] == kd]
+delsalj += [dict(kalla="Din position", t=a["t"], namn=a["namn"], ut=x.get("anledning") or "delförsäljning", ut_kurs=r2(x["kurs"]), antal=x["antal"])
+            for a in divergens["avslut_idag"] if not a["stangd"] for x in a["salt_idag"]]
+
 # ---------- räntor (rantor.csv: Datum,Land,Lopetid,Manader,Ranta) ----------
 rantor = {}
 try:
@@ -150,4 +174,4 @@ try:
 except Exception as e:
     oro = dict(fel=f"{e.__class__.__name__}: {e}")
 
-json.dump(dict(index=index, marknadsmatt=matt, rantor=rantor, oro=oro, divergens=divergens, ras=ras), sys.stdout, ensure_ascii=False, indent=1)
+json.dump(dict(index=index, marknadsmatt=matt, rantor=rantor, oro=oro, divergens=divergens, ras=ras, avslut_idag=avslut, delsalj_idag=delsalj), sys.stdout, ensure_ascii=False, indent=1)
