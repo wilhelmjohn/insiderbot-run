@@ -11,6 +11,9 @@ Regler (låsta 2026-10-20; väntetiden ändrad från 5 till 3 dagar 2026-10-23 e
   4. Stopp 1 % över högsta stängning sedan raset (risk 1,5-8 %, annars ingen affär). Köp tillbaka halva vid 2R och flytta
      stoppen till ingången, resten vid 3R, vid stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär.
   Teoretiskt 500 kr risk per affär: antal = 500 / (stopp - ingång).
+  Skuggtest (infört 2026-10-27, räknas från samma start som facit): ras som uppfyller allt utom regel 2 (insynsköp) blankas också på papper, med samma regler,
+  i en egen logg (ras_logg_insyn.csv) och en egen sektion. De ingår inte i facit och ger inga notiser. Syfte: avgöra framåt
+  om insynsfiltret gör nytta (backtest 2016-2026 gav ingen säker skillnad, och i aktierna med mini futures gick de bättre).
 Facit räknas bara på signaler från testets start. Loggen har kolumnen Vanta: rader loggade med en annan väntetid
 (alla rader från före 2026-10-23 saknar den och gällde 5 dagar) tas bort och signalerna sedan start räknas fram på nytt. Resultatet mot index (blankad aktie mot köpt OMXSPI, 10 dagar) visas också.
 Ingen handel: sidan är ett test framåt i tiden.
@@ -25,6 +28,7 @@ START = pd.Timestamp("2026-10-20")
 OMS_MIN, FALL, REL, VANTA, HALL, KOST = 2e6, -0.08, -0.05, 3, 10, 0.0035
 RISK_KR = 500   # teoretisk risk per affär (avståndet till stoppen), samma som Divergensscreen
 LOGG = Path("ras_logg.csv")
+LOGG_INSYN = Path("ras_logg_insyn.csv")   # skuggtest: signaler som bara stoppades av insynsköp
 
 k = pd.read_csv("kurser.csv", usecols=["Datum", "Ticker", "Stang", "Volym"], parse_dates=["Datum"])
 k = k[k.Ticker.str.endswith(".ST") & (k.Datum >= "2025-06-01")]
@@ -131,7 +135,7 @@ def graf(j, q, i=None, slut=None):
                 ut=(slut - a) if slut is not None and slut <= b else None)
 
 
-ras, signaler = [], []
+ras, signaler, skuggsig = [], [], []
 for j, t in enumerate(cols):
     if len(NORDNET) > 100 and t not in NORDNET: continue   # bara aktier som finns på Nordnet
     if MINI is not None and t not in MINI: continue          # bara aktier med korta mini futures hos Nordnet
@@ -154,43 +158,52 @@ for j, t in enumerate(cols):
                             just_nu=("Insynsköp: utgår" if kopdagar else "Följer villkoren" if (c[T - 1] < c[q] and sedan < isedan) else "Uppfyller inte villkoren just nu")))
             continue
         sedan = c[i] / c[q] - 1; isedan = I[i] / I[q] - 1
-        if kopdagar: lage = "Släppt: insynsköp"
-        elif not (c[i] < c[q]): lage = f"Släppt: över rasdagens stängning dag {VANTA}"
+        # övriga villkor prövas även vid insynsköp, så att skuggtestet kan följa de signaler som bara insynsfiltret stoppar
+        if not (c[i] < c[q]): lage = f"Släppt: över rasdagens stängning dag {VANTA}"
         elif not (sedan < isedan): lage = "Släppt: starkare än index sedan raset"
         else:
             stop0 = np.nanmax(c[q:i + 1]) * 1.01; risk = (stop0 - c[i]) / c[i]
             if risk > 0.08: lage = "Släppt: risken över 8 %"
             else:
                 lage = "Signal"
-                signaler.append(dict(base, signaldag=dates[i].strftime("%Y-%m-%d"), ingang=f2(c[i]), stopp=f2(stop0), mk_dd=f2(100 * MKDD[i]),
-                                     i=i, j=j, q=q))
+                (skuggsig if kopdagar else signaler).append(dict(base, signaldag=dates[i].strftime("%Y-%m-%d"), ingang=f2(c[i]), stopp=f2(stop0),
+                                                                 mk_dd=f2(100 * MKDD[i]), i=i, j=j, q=q))
+        if kopdagar: lage = "Släppt: insynsköp" + (" (följs i skuggtestet)" if lage == "Signal" else "")
         ras.append(dict(base, ch=graf(j, q, i), lage=lage, dag5=dates[i].strftime("%Y-%m-%d"), kurs5=f2(c[i]), dag=T - 1 - q, kurs=f2(c[T - 1]), sedan=f2(100 * sedan), rel=f2(100 * (sedan - isedan))))
 
 # logg: signaler från testets start läggs till en gång (ingångsfälten ändras aldrig), utfallet räknas om varje körning
 nu_str = dt.datetime.now(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M")
-logg = pd.read_csv(LOGG, dtype=str) if LOGG.exists() else pd.DataFrame(columns=["Ticker", "Signaldag", "Rasdag", "Ingang", "Stopp", "Marknad_dd", "Top80", "Loggad", "Vanta"])
-if "Vanta" not in logg.columns: logg["Vanta"] = "5"          # rader från före 2026-10-23 gällde 5 dagars väntan
-bytt = (logg.Vanta.astype(str) != str(VANTA)).any()
-logg = logg[logg.Vanta.astype(str) == str(VANTA)]            # annan väntetid: tas bort och räknas fram på nytt nedan
-if "Mini" not in logg.columns:                                 # 2026-10-23: bara aktier med korta mini futures hos Nordnet
-    logg["Mini"] = "True"
-    if MINI is not None:
-        bytt = bytt or (~logg.Ticker.isin(MINI)).any(); logg = logg[logg.Ticker.isin(MINI)]
-finns = set(zip(logg.Ticker, logg.Signaldag))
-nya = [s for s in signaler if pd.Timestamp(s["signaldag"]) >= START and (s["t"], s["signaldag"]) not in finns]
-if nya:
-    logg = pd.concat([logg, pd.DataFrame([dict(Ticker=s["t"], Signaldag=s["signaldag"], Rasdag=s["rasdag"], Ingang=s["ingang"], Stopp=s["stopp"],
-                                               Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str, Vanta=VANTA, Mini=MINI is not None) for s in nya])], ignore_index=True)
-if nya or bytt:
-    logg.to_csv(LOGG, index=False)
-facit = []
-for r in logg.itertuples():
-    if r.Ticker not in cols or pd.Timestamp(r.Signaldag) not in dates: continue
-    i, j = dates.get_loc(pd.Timestamp(r.Signaldag)), cols.index(r.Ticker)
-    u = utfall(i, j, float(r.Ingang), float(r.Stopp))
-    u["ch"] = graf(j, dates.get_loc(pd.Timestamp(r.Rasdag)) if pd.Timestamp(r.Rasdag) in dates else i - VANTA, i, u.get("slut_i"))
-    facit.append(dict(t=r.Ticker, nordnet=NORDNET.get(r.Ticker), namn=namn(r.Ticker), signaldag=r.Signaldag, rasdag=r.Rasdag, ingang=float(r.Ingang), stopp0=float(r.Stopp),
-                      mk_dd=float(r.Marknad_dd), top80=str(r.Top80) == "True", loggad=r.Loggad, **u))
+
+
+def for_logg(path, sigs):
+    logg = pd.read_csv(path, dtype=str) if path.exists() else pd.DataFrame(columns=["Ticker", "Signaldag", "Rasdag", "Ingang", "Stopp", "Marknad_dd", "Top80", "Loggad", "Vanta"])
+    if "Vanta" not in logg.columns: logg["Vanta"] = "5"          # rader från före 2026-10-23 gällde 5 dagars väntan
+    bytt = (logg.Vanta.astype(str) != str(VANTA)).any()
+    logg = logg[logg.Vanta.astype(str) == str(VANTA)]            # annan väntetid: tas bort och räknas fram på nytt nedan
+    if "Mini" not in logg.columns:                                 # 2026-10-23: bara aktier med korta mini futures hos Nordnet
+        logg["Mini"] = "True"
+        if MINI is not None:
+            bytt = bytt or (~logg.Ticker.isin(MINI)).any(); logg = logg[logg.Ticker.isin(MINI)]
+    finns = set(zip(logg.Ticker, logg.Signaldag))
+    nya = [s for s in sigs if pd.Timestamp(s["signaldag"]) >= START and (s["t"], s["signaldag"]) not in finns]
+    if nya:
+        logg = pd.concat([logg, pd.DataFrame([dict(Ticker=s["t"], Signaldag=s["signaldag"], Rasdag=s["rasdag"], Ingang=s["ingang"], Stopp=s["stopp"],
+                                                   Marknad_dd=s["mk_dd"], Top80=s["top80"], Loggad=nu_str, Vanta=VANTA, Mini=MINI is not None) for s in nya])], ignore_index=True)
+    if nya or bytt or not path.exists():
+        logg.to_csv(path, index=False)
+    ut = []
+    for r in logg.itertuples():
+        if r.Ticker not in cols or pd.Timestamp(r.Signaldag) not in dates: continue
+        i, j = dates.get_loc(pd.Timestamp(r.Signaldag)), cols.index(r.Ticker)
+        u = utfall(i, j, float(r.Ingang), float(r.Stopp))
+        u["ch"] = graf(j, dates.get_loc(pd.Timestamp(r.Rasdag)) if pd.Timestamp(r.Rasdag) in dates else i - VANTA, i, u.get("slut_i"))
+        ut.append(dict(t=r.Ticker, nordnet=NORDNET.get(r.Ticker), namn=namn(r.Ticker), signaldag=r.Signaldag, rasdag=r.Rasdag, ingang=float(r.Ingang), stopp0=float(r.Stopp),
+                       mk_dd=float(r.Marknad_dd), top80=str(r.Top80) == "True", loggad=r.Loggad, **u))
+    return ut, nya
+
+
+facit, nya = for_logg(LOGG, signaler)
+skugga, nya_skugga = for_logg(LOGG_INSYN, skuggsig)   # skuggtest: bara insynsköp stoppade signalen; ingår inte i facit
 # för sammanhang: senaste signalerna före start (ingår inte i facit)
 fore = []
 for s in signaler:
@@ -213,11 +226,13 @@ def sammanf(rader):
 meta = dict(vanta=VANTA, mini_n=len(MINI) if MINI is not None else None, mini_hamtad=MINI_HAMTAD, risk_kr=RISK_KR, oppna_kr=sum(r["kr"] for r in facit if not r["klar"]), uppdaterad=nu_str, kursdag=dates[-1].strftime("%Y-%m-%d"), start=START.strftime("%Y-%m-%d"), mk_dd=float(MKDD[-1]),
             n_univ=int(sum(1 for j_, t_ in enumerate(cols) if OMS[-1, j_] >= OMS_MIN and (MINI is None or t_ in MINI))), alla=sammanf(facit), topp=sammanf([r for r in facit if r["mk_dd"] > -10]),
             ned=sammanf([r for r in facit if r["mk_dd"] <= -10]), stora=sammanf([r for r in facit if r["top80"]]),
-            sma=sammanf([r for r in facit if not r["top80"]]))
+            sma=sammanf([r for r in facit if not r["top80"]]), skugga=sammanf(skugga), skugga_topp=sammanf([r for r in skugga if r["mk_dd"] > -10]),
+            skugga_ned=sammanf([r for r in skugga if r["mk_dd"] <= -10]), skugga_oppna_kr=sum(r["kr"] for r in skugga if not r["klar"]))
 ras.sort(key=lambda x: x["rasdag"], reverse=True)
 data = dict(meta=meta, facit=sorted(facit, key=lambda x: x["signaldag"], reverse=True), fore=fore[:15],
+            skugga=sorted(skugga, key=lambda x: x["signaldag"], reverse=True),
             vantar=[r for r in ras if r["lage"] == "Väntar"], slappta=[r for r in ras if r["lage"].startswith("Släppt")][:25])
 mall = open(Path(__file__).resolve().parent / "ras_mall.html", encoding="utf-8").read()
 Path(UT).write_text(mall.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False, default=float)), encoding="utf-8")
 print(f"Rasbevakning: {len(facit)} signaler i facit ({len(nya)} nya), {len(data['vantar'])} väntar på dag {VANTA}, "
-      f"{len(fore)} signaler före start, kursdag {meta['kursdag']}, universum {meta['n_univ']} aktier")
+      f"{len(skugga)} i skuggtestet med insynsköp ({len(nya_skugga)} nya), {len(fore)} signaler före start, kursdag {meta['kursdag']}, universum {meta['n_univ']} aktier")

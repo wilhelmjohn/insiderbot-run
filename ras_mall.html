@@ -116,6 +116,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <section class="posbox" id="open"></section>
   <section class="posbox" id="wait"></section>
   <section class="posbox" id="done"></section>
+  <section class="posbox" id="skugga"></section>
   <section class="posbox" id="fore"></section>
   <section class="posbox" id="drop"></section>
   <details class="help">
@@ -123,6 +124,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
     <dl>
       <dt>Rasdag</dt><dd>Aktien faller minst 8 % på en dag och minst 5 procentenheter mer än OMXSPI. Stockholmsaktier som omsätter minst 2 MSEK per dag och har korta mini futures (MINI S) hos Nordnet, så att blankningen går att göra i praktiken. Alla utgivare hos Nordnet räknas (J.P. Morgan/Nordnet Markets, Société Générale, Nordea, BNP Paribas, Vontobel, Morgan Stanley). Listan hämtas från Nordnet varje vardagsmorgon.</dd>
       <dt>Dag 3</dt><dd>Inga insynsköp sedan raset, kursen fortfarande under rasdagens stängning och sämre än index sedan raset. Då blankas aktien på papper till stängningskursen.</dd>
+      <dt>Skuggtest insyn</dt><dd>Ras med insynsköp blankas inte, men de som uppfyller alla andra villkor blankas på papper i en egen logg från samma start. I backtestet 2016–2026 gav insynsköpen ingen säker skillnad (alla aktier: −0,29 % per affär med insynsköp mot +0,28 % utan; aktier med mini futures: −0,09 % mot −0,86 %). Framtestet får avgöra om filtret ska vara kvar.</dd>
       <dt>Stopp och mål</dt><dd>Stopp 1 % över högsta stängning sedan raset (risk 1,5–8 %). Halva köps tillbaka vid 2R och stoppen flyttas till ingången, resten vid 3R, stoppen eller efter 10 handelsdagar. Kostnad 0,35 % per affär. Teoretiskt 500 kr risk per affär.</dd>
       <dt>Mot index</dt><dd>Blankad aktie mot köpt OMXSPI i 10 dagar. Visar om aktien fortsätter att gå sämre än börsen, oavsett börsens riktning.</dd>
       <dt>Backtest 2016–2026</dt><dd>Med 3 dagars väntan 674 signaler: +0,27 % per affär i snitt, +0,68 % när börsen låg nära toppen (498 st) och −0,91 % när börsen fallit minst 10 % (169 st). Mot index −0,06 %. Före 2022 −0,65 %, från 2022 +0,90 %. Väntetiden ändrades från 5 till 3 dagar 23 okt 2026 (5 dagar: 507 signaler, −0,11 %; skillnaden ligger inom slumpen). Bara aktier med korta mini futures hos Nordnet i dag (125 st): 227 signaler, −0,86 % per affär, −0,51 % när börsen låg nära toppen (173 st) och −2,22 % när den fallit minst 10 % (52 st). Med 5 dagar i samma urval 192 signaler, −0,18 % per affär och +0,60 % nära toppen. Urvalet bygger på dagens lista, så det är en grov uppskattning bakåt. Därför testas det framåt innan någon handel.</dd>
@@ -186,6 +188,9 @@ sec("wait",`Ras som väntar på dag ${M.vanta||3}`,DATA.vantar.map(r=>klick(r,`<
   <div class="tk">${r.insyn?"":`Just nu: ${esc(r.just_nu)} · `}${pp(r.sedan,1)} sedan raset, ${pp(r.rel,1)} mot index</div></div>
   <div class="num" style="text-align:right"><div class="price">${nf(r.kurs)}</div></div></div>`)),"Inga ras väntar.");
 sec("done","Avslutade (facit)",done.map(r=>klick(r,rowF(r))),"Inga avslutade än. Första möjliga facit kommer cirka två veckor efter start.");
+{const S=DATA.skugga||[],SM=M.skugga||{n:0,klara:0};
+ sec("skugga","Skuggtest: blankade trots insynsköp (ingår inte i facit)",S.map(r=>klick(r,rowF(r))),"Inga än. Här hamnar ras som uppfyller alla villkor utom att insynspersoner köpt aktier.");
+ document.getElementById("skugga").querySelector("h2").insertAdjacentHTML("afterend",`<div class="nx" style="margin-bottom:6px">Samma regler som facit, men raset hade insynsköp och blankas därför inte i facit. Jämförelsen visar om insynsfiltret gör nytta. ${SM.klara?`Avslutade: ${kr(SM.kr)} (${SM.klara} st, ${SM.vin} med vinst, snitt ${pc(SM.snitt,2)})`:"Inga avslutade än"}${SM.n-SM.klara?` · öppna ${SM.n-SM.klara} st, hittills ${kr(M.skugga_oppna_kr)}`:""}. Facit: ${A_.klara?`${kr(A_.kr)} (${A_.klara} st, snitt ${pc(A_.snitt,2)})`:"inga avslutade"}.</div>`)}
 sec("fore","Signaler före start (ingår inte i facit)",DATA.fore.map(r=>klick(r,rowF(r))),"Inga.");
 sec("drop","Ras som släpptes (aldrig blankade)",DATA.slappta.map(r=>klick(r,`<div class="p"><div><b>${esc(r.namn)}</b> <span class="tk">${tk(r.t)}</span>${NN(r)}
   <div class="tk">Ras ${dd(r.rasdag)}: ${pp(r.fall,1)}</div>
