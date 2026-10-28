@@ -29,7 +29,7 @@ if "--live" in sys.argv:
         if json.load(open(_mf)).get("hamtad", "")[:10] != dt.datetime.now(_Z("Europe/Stockholm")).strftime("%Y-%m-%d"):
             print("Varning: kursfilen under dagen är inte från i dag, används inte."); LIVE = {}
 RISK_KR = 500
-VALUTA_AVG = 0.005               # Nordnets valutaväxlingsavgift, dras vid köp och sälj i aktier som inte handlas i SEK
+VALUTA_AVG = 0.0                 # ingen växlingsavgift: köp i NOK/DKK görs från valutakonto (var 0,005 = Nordnets 0,5 %)
 UPPF_START = "2026-10-12"         # uppföljning: alla signaler från och med den här dagen, oavsett status
 MAX_ALDER, MAX_OVER_R = 2, 0.5   # köpläge bara signaldagen + 2 handelsdagar, och högst 0,5R över signalkursen (test 2016-2026)
 EXTRA = ["LYKO-A.ST"]
