@@ -620,8 +620,15 @@ def _facit_utfall(f):
     insats = RISK_KR * e / Rk
     idx_kr = round(insats * (I[j] / I[i] - 1)) if I is not None and np.isfinite(I[i]) and np.isfinite(I[j]) and I[i] > 0 else None
     return dict(oppen=slut is None, dagar=int(j - i), halv=half, nu=round(float(c[j]), 4), r=round(float(res), 3), kr=round(RISK_KR * res),
-                idx_kr=idx_kr, slutdag=dates[slut].strftime("%Y-%m-%d") if slut is not None else None, handelser=hand)
+                idx_kr=idx_kr, slutdag=dates[slut].strftime("%Y-%m-%d") if slut is not None else None, handelser=hand, avg=VALUTA_AVG)
 
+
+# avslutade signaler i NOK/DKK som räknades med en annan växlingsavgift räknas om en gång (2026-10-28: avgiften togs bort)
+if FACIT:
+    for f in FACIT["signaler"]:
+        u_ = f.get("utfall")
+        if u_ and not u_["oppen"] and f["land"] != "SE" and u_.get("avg", 0.005) != VALUTA_AVG:
+            f["utfall"] = _facit_utfall(f)
 
 if "--bekraftat" in sys.argv:
     kd = dates[-1].strftime("%Y-%m-%d")
