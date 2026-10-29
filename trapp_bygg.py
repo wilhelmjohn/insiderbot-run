@@ -11,6 +11,8 @@ import numpy as np, pandas as pd
 
 UT = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/trappscreen/trappscreen.html")
 HER = Path(__file__).resolve().parent
+try: NORDNET = pd.read_csv(HER / "nordnet_lankar.csv").set_index("Ticker").Url.to_dict()
+except Exception: NORDNET = {}
 FEE, MARG, N = 0.001, 0.002, 260
 IDAG = pd.Timestamp.now(tz="Europe/Stockholm").tz_localize(None).normalize()
 
@@ -185,7 +187,7 @@ def analysera(o, inf, tm, bl, h, ik, div=None):
         if blank_f is not None and blank_f <= -0.5: U.append((f"Blankning minskar {blank_f:+.1f} pp", "Blankarna täcker."))
         if last >= hi20 * 0.998 and vr and vr >= 1.5 and ma2 > 0: U.append(("Utbrott på volym", "Ny 20-dagarstopp på högre omsättning."))
         out.append(dict(
-            t=t, namn=re.sub(r"\s*\(publ\.?\)", "", str(i.longName)).strip(), sektor=x.Sektor, mc=round(float(mc), 1), kurs=round(float(last), 2),
+            t=t, nordnet=NORDNET.get(t), namn=re.sub(r"\s*\(publ\.?\)", "", str(i.longName)).strip(), sektor=x.Sektor, mc=round(float(mc), 1), kurs=round(float(last), 2),
             d1=round(float(ret1), 1), d5=round(float(ret5), 1), fit=fit, P={k: round(v, 1) for k, v in P.items()}, rng=round(float(rng), 2),
             dagar25=int(x.Dagar25), dips=int(dips), aterh=int(x.Aterh), krasch=int(x.Krasch), ma200=round(float(ma2), 1), dopp=round(float(dopp), 1),
             rsi=round(float(r.iloc[-1])), oms=float(x.Oms), marg=float(x.Marg), spread=None if pd.isna(sp) else float(sp),

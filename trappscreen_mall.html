@@ -42,6 +42,8 @@ section.panel{background:var(--surface);border:1px solid var(--line);border-radi
 .big .l{font-size:16px;font-weight:600}
 .scale{position:relative;margin:18px 4px 6px;height:10px;border-radius:5px;background:linear-gradient(90deg,var(--bad) 0%,var(--bad) 20%,var(--warn) 35%,var(--line) 50%,var(--good) 70%,var(--good) 100%);opacity:.9}
 .scale i{position:absolute;top:-6px;width:4px;height:22px;background:var(--ink);border-radius:2px;transform:translateX(-2px)}
+.nn{display:inline-block;font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.nn:hover{border-color:var(--accent)}.nn.in{padding:1px 8px;margin-left:4px}
 .ticks{display:flex;justify-content:space-between;font:12px var(--f-mono);color:var(--muted);margin:0 0 10px}
 .facts{display:flex;flex-wrap:wrap;gap:6px 22px;margin:8px 0 0;font-size:14px}
 .facts b{font-weight:600}
@@ -281,7 +283,7 @@ function minPanel(){
   const keys=Object.keys(MY).filter(k=>AK(k)); $("mine").hidden=!keys.length; if(!keys.length) return;
   $("minTab").innerHTML=`<thead><tr><th>Aktie</th><th>Ursprung</th><th>Trapposter</th><th>Kurs</th><th>Resultat</th><th>Nästa köp</th><th>Nästa sälj</th></tr></thead><tbody>`+keys.map(k=>{
     const z=AK(k), p=MY[k], L=lv(z), res=p.u!=null?(z.kurs/p.u-1)*100:null;
-    return `<tr><td class="nm"><b>${esc(z.namn)}</b><span class="muted small"> · ${esc(k.replace(".ST",""))}</span></td><td class="num">${p.u!=null?fmt(p.u,2):"–"}</td><td class="num">${p.lots.length} av 3</td><td class="num">${fmt(z.kurs,2)}</td>
+    return `<tr><td class="nm"><b>${esc(z.namn)}</b><span class="muted small"> · ${esc(k.replace(".ST",""))}</span>${(DATA.aktier.find(x=>x.t===k)||{}).nordnet?` <a class="nn in" href="${esc(DATA.aktier.find(x=>x.t===k).nordnet)}" target="_blank" rel="noopener">Nordnet ↗</a>`:""}</td><td class="num">${p.u!=null?fmt(p.u,2):"–"}</td><td class="num">${p.lots.length} av 3</td><td class="num">${fmt(z.kurs,2)}</td>
       <td class="num ${res==null?"":res>=0?"pos":"neg"}">${res==null?"–":sgn(res,1)+" %"}</td><td class="num">${L.niv.length?fmt(L.niv[0],2):"full"}</td><td class="num">${L.salj.length?fmt(L.salj[0].mal,2):"–"}</td></tr>`;}).join("")+"</tbody>";
 }
 
@@ -305,7 +307,7 @@ function portfolj(){
   }
   const rows = val.map(z=>{
     const n = Math.floor(post/z.kurs);
-    return `<tr><td class="nm"><b>${esc(z.namn)}</b><span class="muted small"> · ${esc(z.t.replace(".ST",""))}</span></td>
+    return `<tr><td class="nm"><b>${esc(z.namn)}</b><span class="muted small"> · ${esc(z.t.replace(".ST",""))}</span>${z.nordnet?` <a class="nn in" href="${esc(z.nordnet)}" target="_blank" rel="noopener">Nordnet ↗</a>`:""}</td>
       <td>${SEKTOR[z.sektor]||z.sektor}</td><td class="num">${z.fit}</td><td class="num">${fmt(z.kurs,2)}</td>
       <td class="num">${fmt(z.steg,1)} %</td><td class="num">${fmt(post,0)} kr</td><td class="num">${n} st</td>
       <td class="num">${z.niv.map(x=>fmt(x,2)).join(" · ")}</td></tr>`;}).join("");
@@ -343,7 +345,7 @@ function detalj(z){
     `Insynsköp 90 d: ${z.kop?fmt(z.kop/1e6,1)+" MSEK":"inga"}`,`Insynsförsäljning 90 d: ${z.sal?fmt(z.sal/1e6,1)+" MSEK":"inga"}`,
     ...(z.utd?[`Utdelning: ${z.utd.senast?`senaste avskiljandedag ${z.utd.senast} (${fmt(z.utd.s_belopp,2)} kr, ${fmt(z.utd.s_pct,1)} %)`:"ingen senaste i datan"}${z.utd.nasta?`, nästa ${z.utd.nasta} (om ${z.utd.n_dagar} d${z.utd.n_belopp?`, ca ${fmt(z.utd.n_belopp,2)} kr`:""})`:""}. Signalerna är räknade på utdelningsjusterade kurser (${z.utd.just} avskiljandedagar)`]:[])].join(" · ");
   return `<div class="detail"><div class="chartbox" data-t="${esc(z.t)}"><div class="ch-top"><div class="seg" role="group" aria-label="Period">${[["3 mån",65],["6 mån",130],["1 år",260]].map(([l,n])=>`<button data-n="${n}" aria-pressed="${state.range===n}">${l}</button>`).join("")}</div><div class="ro" aria-live="off"></div></div><div class="cv"></div><div class="leg"><span><i style="border-color:var(--accent)"></i>MA50</span><span><i style="border-color:var(--warn)"></i>MA200</span><span><i style="border-color:var(--muted);border-top-style:dashed"></i>Köpnivåer för trappan</span><span><i style="border-color:var(--good);border-top-style:dashed"></i>Säljmål</span><span>● mina affärer</span><span>▲ insynsköp</span><span>▼ insynsförsäljning</span></div></div><div><h3>Kraven</h3><table class="crit"><tbody>${crit}</tbody></table>
-      <p class="small muted" style="margin:10px 0 0">${extra}</p></div>
+      <p class="small muted" style="margin:10px 0 0">${extra}</p>${z.nordnet?`<p style="margin:10px 0 0"><a class="nn" href="${esc(z.nordnet)}" target="_blank" rel="noopener">Öppna i Nordnet ↗</a></p>`:""}</div>
     <div>${minBlock(z)}<h3>${LV.mine?"Din trappa":"Trappan om du startar idag"} (steg ${fmt(z.steg,1)} %)</h3>
       <table class="lv"><thead><tr><th>Köp</th><th>Köpkurs</th><th>Säljmål</th></tr></thead><tbody>${lvr||'<tr><td colspan="3">Full trappa</td></tr>'}</tbody></table>
       <p class="small muted" style="margin:6px 0 0">${LV.mine?"Utgår från din position.":`Utgår från senaste kurs ${fmt(z.kurs,2)}.`} Posten säljs ett steg över sin köpkurs. Ursprungsposten säljs aldrig.</p>
