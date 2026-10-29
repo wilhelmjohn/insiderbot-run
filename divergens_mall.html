@@ -84,6 +84,7 @@ header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-
 .flag{font-size:12px;padding:2px 7px;border-radius:4px;background:var(--sunk);color:var(--muted)}
 .flag.pos{background:var(--buy-bg);color:var(--buy)} .flag.neg{background:var(--avoid-bg);color:var(--avoid)}
 .note{font-size:12px;color:var(--muted);margin-top:6px}
+.note.why{color:var(--ink);font-size:13px;border-left:3px solid var(--near);padding-left:8px}
 .detail{border-top:1px solid var(--line);padding:12px 14px 16px;display:flex;flex-direction:column;gap:14px}
 .dgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .sec h3{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
@@ -142,10 +143,10 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
   <details class="help">
     <summary>Så läser du screenen</summary>
     <dl>
-      <dt>Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Köpläget gäller signaldagen och två handelsdagar till, och bara så länge kursen ligger högst 0,5R över signalkursen. Köp, mål och antal räknas från dagens kurs; stoppen ligger kvar under bottnen.</dd>
-      <dt>Avvakta</dt><dd>Signalen är klar men något talar emot: (1) börsen är inte bredt svag och aktien har gått mer än 6 procentenheter sämre än index sedan första bottnen (gav förlust i testet), eller (2) bolaget rapporterar inom 14 dagar, alltså under affärens tid. Stoppen skyddar inte mot ett ras på rapportdagen och utfallen var dubbelt så spridda i testet.</dd>
-      <dt>Närmar sig</dt><dd>Divergensen syns men bottnen är inte bekräftad. Kursen behöver stänga över bottnen två dagar.</dd>
-      <dt>Bevaka</dt><dd>Fallit och översåld, men RSI gör fortfarande lägre bottnar.</dd>
+      <dt>1 Köpläge</dt><dd>Kursen har gjort en lägre botten men RSI(9) en högre, bottnen är bekräftad av två högre stängningar, stochastic var översåld och aktien ligger minst 15 % under sin rullande 1-årstopp. Köpläget gäller signaldagen och två handelsdagar till, och bara så länge kursen ligger högst 0,5R över signalkursen. Köp, mål och antal räknas från dagens kurs; stoppen ligger kvar under bottnen.</dd>
+      <dt>2 Avvakta</dt><dd>Signalen är klar men något talar emot: (1) börsen är inte bredt svag och aktien har gått mer än 6 procentenheter sämre än index sedan första bottnen (gav förlust i testet), eller (2) bolaget rapporterar inom 14 dagar, alltså under affärens tid. Stoppen skyddar inte mot ett ras på rapportdagen och utfallen var dubbelt så spridda i testet.</dd>
+      <dt>3 Närmar sig</dt><dd>Divergensen syns men bottnen är inte bekräftad. Kursen behöver stänga över bottnen två dagar.</dd>
+      <dt>4 Bevaka</dt><dd>Fallit och översåld, men RSI gör fortfarande lägre bottnar.</dd>
       <dt>Undvik</dt><dd>Fallit mer än 80 %, eller nyemission eller vinstvarning de senaste 120 dagarna.</dd>
       <dt>Utgår</dt><dd>Signal de senaste dagarna men stoppen, målet eller ett överköpt läge är nått.</dd>
       <dt>RSI(9)</dt><dd>Styrkan i de senaste rörelserna, 0–100. Under 30 är svagt, över 70 starkt.</dd>
@@ -166,6 +167,7 @@ footer{font-size:12px;color:var(--faint);max-width:70ch}
 const DATA=/*__DATA__*/null;
 const ST={"Köpläge":["--buy","--buy-bg"],"Avvakta":["--near","--near-bg"],"Närmar sig":["--near","--near-bg"],"Bevaka":["--watch","--watch-bg"],"Undvik":["--avoid","--avoid-bg"],"Utgår":["--out","--out-bg"]};
 const ORDER=["Köpläge","Avvakta","Närmar sig","Bevaka","Undvik","Utgår"];
+const NR={"Köpläge":1,"Avvakta":2,"Närmar sig":3,"Bevaka":4};const lbl=s=>NR[s]?NR[s]+" "+s:s;
 const nf=(x,d=2)=>x==null||!isFinite(x)?"–":x.toLocaleString("sv-SE",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pc=(x,d=0)=>x==null||!isFinite(x)?"–":(x>0?"+":x<0?"−":"")+Math.abs(x*100).toLocaleString("sv-SE",{maximumFractionDigits:d,minimumFractionDigits:d})+" %";
 const MON=["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
@@ -262,7 +264,7 @@ const lander=document.getElementById("lander");
  b.onclick=()=>{land=l;[...lander.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};lander.appendChild(b)});
 const chips=document.getElementById("chips");
 ["Alla",...ORDER].forEach(s=>{if(s!=="Alla"&&!counts[s])return;const b=document.createElement("button");b.className="chip";b.id="chip-"+s;
- b.innerHTML=`${s}<span class="n">${s==="Alla"?DATA.rows.length:counts[s]}</span>`;b.setAttribute("aria-pressed",s===filt);
+ b.innerHTML=`${lbl(s)}<span class="n">${s==="Alla"?DATA.rows.length:counts[s]}</span>`;b.setAttribute("aria-pressed",s===filt);
  b.onclick=()=>{filt=s;[...chips.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render()};chips.appendChild(b)});
 
 function metric(k,v){return `<div class="m"><span class="k">${k}</span><span class="v">${v}</span></div>`}
@@ -272,9 +274,9 @@ function card(r){
  const el=document.createElement("article");el.className="row"+(r.status==="Utgår"?" out":"");el.style.setProperty("--st",`var(${c})`);el.style.setProperty("--stbg",`var(${b})`);
  const flags=r.flags.map(([t,k])=>`<span class="flag ${k}">${esc(t)}</span>`).join("");
  el.innerHTML=`<button class="row-head" aria-expanded="false" id="h-${r.t}">
-  <div class="top"><div class="who"><span class="pill">${r.status}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land==="US"?(r.bors==="NYSE"?"NYSE":"NASDAQ"):r.land}</span>`:""}${r.land==="US"&&M.usa_prel?`<span class="land" title="New York är öppet, kursen är preliminär">PREL</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
+  <div class="top"><div class="who"><span class="pill">${lbl(r.status)}</span><span class="name">${esc(r.namn)}</span><span class="tk">${esc(r.t.replace(/\.(ST|OL|CO)$/,""))}</span>${r.land!=="SE"?`<span class="land">${r.land==="US"?(r.bors==="NYSE"?"NYSE":"NASDAQ"):r.land}</span>`:""}${r.land==="US"&&M.usa_prel?`<span class="land" title="New York är öppet, kursen är preliminär">PREL</span>`:""}</div><span class="price">${nf(r.kurs)}${r.land!=="SE"?` <span class="muted" style="font-size:11px">${r.valuta}</span>`:""}</span></div>
   <div class="metrics">${metric("Från 1-årstopp",`<span class="num">${pc(r.dd)}</span>`)}${metric("RSI(9)",`<span class="num">${nf(r.rsi,0)}</span>`)}${metric("Stochastic",`${esc(r.stoch)} <span class="num muted">${nf(r.K,0)}/${nf(r.D,0)}</span>`)}${metric("MACD",esc(r.macd))}</div>
-  ${levels(r)}${r.bevakas?`<div class="flags"><span class="flag neu">★ Extra bevakning</span></div>`:""}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note">${esc(r.not_)}</div>`:""}
+  ${levels(r)}${r.bevakas?`<div class="flags"><span class="flag neu">★ Extra bevakning</span></div>`:""}${flags?`<div class="flags">${flags}</div>`:""}${r.not_&&r.status!=="Köpläge"?`<div class="note${r.status==="Avvakta"?" why":""}">${r.status==="Avvakta"?"<b>Därför Avvakta:</b> ":""}${esc(r.not_)}</div>`:""}
  </button>${r.nordnet?`<a class="nn" href="${esc(r.nordnet)}" target="_blank" rel="noopener">Öppna i Nordnet ↗</a>`:""}<div class="detail" hidden></div>`;
  const head=el.querySelector(".row-head"),det=el.querySelector(".detail");
  head.onclick=()=>{const open=det.hidden;det.hidden=!open;head.setAttribute("aria-expanded",open);if(open&&!det.dataset.done){fill(det,r);det.dataset.done=1}};
