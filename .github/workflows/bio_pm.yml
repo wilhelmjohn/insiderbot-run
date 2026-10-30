@@ -38,11 +38,11 @@ jobs:
           git add bio_pm.csv bio_pm_status.csv
           if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
           git commit -m "bio: pressmeddelanden $(date -u '+%F %H:%M')"
-          for i in 1 2 3; do
+          for s in 8 30 90 180; do
             if git pull --rebase -X theirs --autostash >/tmp/gitlog.txt 2>&1 && git push >>/tmp/gitlog.txt 2>&1; then exit 0; fi
-            cat /tmp/gitlog.txt; sleep 8
+            cat /tmp/gitlog.txt; sleep $s
           done
-          # misslyckades tre gånger: lägg felet på en felsökningsgren så att det går att läsa
+          # misslyckades fyra gånger: lägg felet på en felsökningsgren så att det går att läsa
           git status >>/tmp/gitlog.txt 2>&1; git log --oneline -5 >>/tmp/gitlog.txt 2>&1
           git checkout -q -b "dbg-bio-pm-${GITHUB_RUN_ID}" && cp /tmp/gitlog.txt bio_pm_fel.txt && git add -f bio_pm_fel.txt && git commit -qm "debug" && git push -q origin HEAD || true
           exit 1
