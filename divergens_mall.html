@@ -209,19 +209,23 @@ document.getElementById("foot").textContent=`Regelbaserad screen, inte rådgivni
 (function(){const U=M.uppfoljning;if(!U||!U.affarer.length)return;const el=document.getElementById("uppf");el.hidden=false;
  const kr=x=>x==null?"–":(x>=0?"+":"−")+Math.abs(x).toLocaleString("sv-SE")+" kr",rr=x=>(x>=0?"+":"−")+nf(Math.abs(x),2)+"R";
  const A=U.affarer.filter(a=>!a.rapport),RP=U.affarer.filter(a=>a.rapport),rst=RP.filter(a=>!a.oppen),rkr=rst.reduce((s,a)=>s+a.kr,0),st=A.filter(a=>!a.oppen),vin=st.filter(a=>a.kr>0).length,snitt=st.length?st.reduce((s,a)=>s+a.r,0)/st.length:0,skr=st.reduce((s,a)=>s+a.kr,0),sidx=st.reduce((s,a)=>s+(a.idx_kr||0),0),mot=skr-sidx;
- const spark=a=>{const S=a.ser;if(!S||S.c.filter(x=>x!=null).length<2)return"";const W=300,H=84,n=S.c.length;
+ const spark=a=>{const S=a.ser;if(!S||S.c.filter(x=>x!=null).length<2)return"";const W=300,H=84,HB=14,n=S.c.length;
   const lv=[a.stopp,a.kurs,a.m2,a.m3].filter(x=>x!=null),vals=[...S.c.filter(x=>x!=null),...lv],mn=Math.min(...vals),mx=Math.max(...vals),sp=(mx-mn)||1;
   const X=i=>4+i/(Math.max(n-1,1))*(W-8),Y=v=>H-4-(v-mn)/sp*(H-8);
   let d="",pen=false;S.c.forEach((v,i)=>{if(v==null){pen=false;return}d+=(pen?"L":"M")+X(i).toFixed(1)+","+Y(v).toFixed(1);pen=true});
   const hl=(v,col,dash)=>v==null?"":`<line x1="0" x2="${W}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(${col})" stroke-width="1" ${dash?'stroke-dasharray="4 3"':""} opacity=".8"/>`;
   const ut=a.handelser.map(h=>{const k=S.d.indexOf(h[1]);return k<0?"":`<circle cx="${X(k).toFixed(1)}" cy="${Y(h[3]!=null?h[3]:S.c[k]).toFixed(1)}" r="3.5" fill="var(${/stopp/.test(h[2])?"--avoid":/R$/.test(h[2])?"--buy":"--muted"})" stroke="var(--surface)" stroke-width="1"/>`}).join("");
   const xs=X(S.i).toFixed(1);
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:520px;height:auto;display:block;margin:6px 0 2px" role="img" aria-label="Kursen för ${esc(a.namn)} kring signalen ${dd(a.datum)}">
+  const ev=new Map();ev.set(S.i,"--accent");a.handelser.forEach(h=>{const k=S.d.indexOf(h[1]);if(k>=0)ev.set(k,/stopp/.test(h[2])?"--avoid":/R$/.test(h[2])?"--buy":"--muted")});
+  const lab=[],fri=k=>lab.every(([j])=>Math.abs(X(j)-X(k))>=26);[...ev.keys()].sort((p,q)=>p-q).forEach(k=>{if(fri(k))lab.push([k,ev.get(k)])});
+  const steg=Math.max(1,Math.ceil(n/6));for(let k=0;k<n;k+=steg)if(fri(k))lab.push([k,null]);if(fri(n-1))lab.push([n-1,null]);
+  const ax=`<line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="var(--line)" stroke-width="1"/>`+lab.map(([k,c])=>{const x=X(k),anc=x<14?"start":x>W-14?"end":"middle";
+   return (c?`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${H}" stroke="var(${c})" stroke-width="1" stroke-dasharray="1 2" opacity=".6"/>`:"")+`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${H}" y2="${H+3}" stroke="var(--faint)" stroke-width="1"/><text x="${x.toFixed(1)}" y="${H+11}" text-anchor="${anc}" font-size="8" font-family="var(--f-body)" fill="${c?`var(${c})`:"var(--faint)"}"${c?' font-weight="600"':""}>${dd(S.d[k])}</text>`}).join("");
+  return `<svg viewBox="0 0 ${W} ${H+HB}" style="width:100%;max-width:520px;height:auto;display:block;margin:6px 0 2px;overflow:visible" role="img" aria-label="Kursen för ${esc(a.namn)} kring signalen ${dd(a.datum)}">
    <rect x="${xs}" y="0" width="${(X(Math.min(S.i+10,n-1))-X(S.i)).toFixed(1)}" height="${H}" fill="var(--sunk)"/>
    ${hl(a.m3,"--buy",true)}${hl(a.m2,"--buy",true)}${hl(a.kurs,"--accent",false)}${hl(a.stopp,"--avoid",true)}
    <path d="${d}" fill="none" stroke="var(--c-price)" stroke-width="1.6" stroke-linejoin="round"/>
-   <circle cx="${xs}" cy="${Y(a.kurs).toFixed(1)}" r="3.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="1"/>${ut}</svg>
-   <div class="tk">${dd(S.d[0])} – ${dd(S.d[n-1])}</div>`};
+   <circle cx="${xs}" cy="${Y(a.kurs).toFixed(1)}" r="3.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="1"/>${ut}${ax}</svg>`};
  const rad=a=>{const v=a.land==="SE"?" kr":" "+a.valuta,p=x=>nf(x)+v;
   const h=a.handelser.map(x=>`<div class="tk">${dd(x[1])}: ${esc(x[2])}${x[3]!=null?" à "+p(x[3]):""}</div>`).join("");
   const nu=a.oppen?`<div class="tk">Öppen, dag ${a.dagar} av 10${a.halv?", halva kvar med stoppen på köpkursen":""} · senast ${p(a.nu)}</div>`:"";
