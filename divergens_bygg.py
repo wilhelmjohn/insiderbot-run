@@ -458,6 +458,16 @@ for t in univ:
     ins = dict(kop_n=int(k90["Person i ledande ställning"].nunique()), kop_kr=float(k90.Belopp.sum()),
                salj_n=int(s90["Person i ledande ställning"].nunique()), salj_kr=float(s90.Belopp.sum()),
                vd=any(vdcfo(a["roll"]) for a in aff if a["typ"] == "Köp"), aff=aff[:12])
+    # insiderköp nära bottnen: publicerade från 5 handelsdagar före den senaste bottnen till i dag, minst 1 Mkr.
+    # Bara information, inget krav (test 2026-11-11: +0,17R mot övriga, 128 signaler, t 1,2, inte bevisat).
+    nara = None
+    if pair is not None and status in ("Köpläge", "Närmar sig", "Avvakta", "Utgår"):
+        fran = dates[max(pair[1] - 5, 0)]
+        kb = kop[(kop.Ticker == t) & (kop.Publiceringsdatum >= fran)]
+        kb_kr = float((kb.Volym * kb.Pris).clip(upper=5e8).sum())
+        if kb_kr >= 1e6:
+            nara = dict(n=int(kb["Person i ledande ställning"].nunique()), kr=kb_kr, fran=fran.strftime("%Y-%m-%d"))
+    ins["nara_botten"] = nara
     b = bl_map.get(norm(sek.longName.get(t, ""))) if LAND(t) == "SE" else None
     blank = dict(niva=float(b.Niva), f20=float(b.Forandring_20d)) if b is not None else None
     rap = rk[(rk.Ticker == t) & (rk.Datum >= idag_ts.normalize()) & (rk.Datum <= idag_ts + pd.Timedelta(days=RAPPORT_DAGAR))]
@@ -486,6 +496,7 @@ for t in univ:
         lowinfo = dict(d1=dates[p].strftime("%Y-%m-%d"), c1=float(c[p]), r1=float(r[p]), d2=dates[q].strftime("%Y-%m-%d"), c2=float(c[q]), r2=float(r[q]))
     flags = []
     if sdd is not None and sdd <= -0.15: flags.append(("Sektorfall", "pos"))
+    if ins.get("nara_botten"): flags.append((f"Insynsköp nära bottnen {ins['nara_botten']['n']} pers · {kr(ins['nara_botten']['kr'])} (info, ej krav)", "pos"))
     if ins["kop_n"]: flags.append((f"Insynsköp {ins['kop_n']} pers · {kr(ins['kop_kr'])}", "pos"))
     if ins["salj_n"]: flags.append((f"Insynssälj {ins['salj_n']} pers · {kr(ins['salj_kr'])}", "neg"))
     if blank and blank["niva"] >= 3: flags.append((f"Blankad {blank['niva']:.1f} %".replace(".", ",") + (" ↑" if blank["f20"] > 0.2 else " ↓" if blank["f20"] < -0.2 else ""), "neu"))
