@@ -79,7 +79,7 @@ p.kom{margin:8px 0 0;font-size:13px;line-height:1.45;max-width:820px}img.ch{curs
 <script>
 const D=__DATA__;D.rader.forEach(x=>{x.dp=x.djup?x.djup.poang:null});
 const INTAB=(x,t)=>t==="alla"||(t==="fav"?FAV.has(x.ticker):t==="djup"?!!x.djup:x.avd===t);
-const AVD=[["djup","Djupanalys","Bolag som har en djupanalys, sorterade på den nya poängen 0-100: sex delar à 0-5 (affären, kassaflöde, värdering, katalysatorer, insyn, risk). Kvällsjobbet väljer ut vilka fall som är värda en analys. Inte ett köp- eller säljråd."],
+const AVD=[["djup","Djupanalys","Bolag som har en djupanalys, med den nya poängen 0-100 (listan sorteras på senast tillagda; tryck på Djup för att sortera på poängen): sex delar à 0-5 (affären, kassaflöde, värdering, katalysatorer, insyn, risk). Kvällsjobbet väljer ut vilka fall som är värda en analys. Inte ett köp- eller säljråd."],
 ["regel","Regelträffar","Alla regler uppfyllda: över MA200, ej efter kursfall, omsättning minst 2 MSEK/dag."],
 ["poang","Bevaka","Insiderköp utan kursfall som missar något regelkrav. Ingen testad edge."],
 ["kniv","Knivar","Insiderköp efter kursfall (mer än 20 % under 52v-högsta eller -15 % på 15 dagar). Insiderköpet markerar inte botten: i backtestet ingen uppstuds efter köpet. Vändningssignal = volymspik (2x), RSI över 35 och uppdag, första gången inom 60 dagar. Liten edge: ca +1 % median på 10 dagar, ca 0 % på 20."],
@@ -88,7 +88,7 @@ const AVD=[["djup","Djupanalys","Bolag som har en djupanalys, sorterade på den 
 const COLS=[["bolag","Bolag"],["dp","Djup"],["rkupp","Riktkurs"],["pers","Köpare"],["belopp","Belopp"],["bv","Storlek"],["fall15","15d före"],["topp","Från topp"],["d1","1D"],["d7","7D"],["d14","14D"],["tot","Totalt"],["rdag","Rapport"],["dagar","Tillagd"]];
 let tab=(location.hash||"").slice(1);if(!AVD.some(a=>a[0]===tab))tab="djup";
 const FAV=new Set();let favDb=null;
-let sort={k:"dp",d:-1},open=null;
+let sort={k:"dagar",d:1},open=null;   // senast tillagda först (Wilhelms önskan 2026-11-12)
 const $=id=>document.getElementById(id);
 const dagarSedan=d=>{const a=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.max(0,Math.round((n-a)/864e5))};
 const dagarTill=d=>{const a=new Date(d+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((a-n)/864e5)};
