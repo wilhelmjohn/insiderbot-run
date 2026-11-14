@@ -254,6 +254,8 @@ def s1_signals(c, r, K, hi250):
         for p in piv:
             if 5 <= b - p <= 40 and c[b] < c[p] and r[b] > r[p] and r[p] < 35 and c[i] <= 0.85 * hi250[i] \
                     and np.nanmin(K[i - 3:i + 1]) < 25:
+                # ingen lägre stängning mellan bottnarna (annars är det ingen äkta divergens, t.ex. Intrum nov 2026; Wilhelms beslut 2026-11-14)
+                if np.nanmin(c[p:b]) < c[b]: break
                 e = c[i]; risk = (e - c[b] * 0.99) / e
                 if np.isfinite(risk) and risk <= 0.08:
                     out.append(dict(i=i, b=b, p=p, e=e, risk=max(risk, 0.015)))
@@ -400,7 +402,7 @@ for t in univ:
         m = len(c) - 10 + int(np.nanargmin(c[-10:]))
         piv = pivots(c[:m])
         prior = [p for p in piv if 5 <= m - p <= 40 and c[m] < c[p] and r[p] < 35]
-        divp = [p for p in prior if r[m] > r[p]]
+        divp = [p for p in prior if r[m] > r[p] and np.nanmin(c[p:m]) >= c[m]]
         if divp and now <= 1.04 * c[m] and np.nanmin(K[m - 3:]) < 30:
             p = divp[-1]; pair = (p, m)
             ups = sum(1 for x in c[m + 1:] if x > c[m])
