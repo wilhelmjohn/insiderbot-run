@@ -76,10 +76,11 @@ with sync_playwright() as p:
             pg.wait_for_timeout(8000)
             for namn in ("Godkänn|Acceptera", "Jag har fyllt 20 år"):
                 try:
-                    pg.get_by_role("button", name=re.compile(namn, re.I)).first.click(timeout=3000)
-                    pg.wait_for_timeout(2000)
+                    pg.get_by_text(re.compile(namn, re.I)).first.click(timeout=4000, force=True)
+                    pg.wait_for_timeout(2500)
+                    print("klickade", namn)
                 except Exception:
-                    pass
+                    print("kunde inte klicka", namn)
             total = expected_count(pg.inner_text("body"))
             info["forvantat"] = total
             for _ in range(40):
@@ -91,7 +92,8 @@ with sync_playwright() as p:
                     knapp.scroll_into_view_if_needed(timeout=3000)
                     knapp.click(timeout=3000)
                 except Exception:
-                    pg.mouse.wheel(0, 6000)
+                    pg.keyboard.press("End")
+                    pg.mouse.wheel(0, 8000)
                 pg.wait_for_timeout(2500)
             text = pg.inner_text("body")
             if os.environ.get("DEBUG_SB"):
