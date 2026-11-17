@@ -40,14 +40,14 @@ jobs:
           with sync_playwright() as p:
               b = p.chromium.launch()
               pg = b.new_page(locale="sv-SE")
-              resp = pg.goto(url, wait_until="networkidle", timeout=60000)
+              resp = pg.goto(url, wait_until="domcontentloaded", timeout=60000)
               print("HTTP-status:", resp.status if resp else None)
               print("Titel:", pg.title())
               try:
                   pg.get_by_role("button", name=re.compile("Godkänn|Acceptera|Jag är över", re.I)).first.click(timeout=4000)
               except Exception as e:
                   print("Ingen kakruta/åldersruta klickad")
-              pg.wait_for_timeout(5000)
+              pg.wait_for_timeout(15000)
               text = pg.inner_text("body")
               print("Tecken på sidan:", len(text))
               print(text[:4000])
