@@ -74,7 +74,7 @@ with sync_playwright() as p:
             resp = pg.goto(url_for(kat), wait_until="domcontentloaded", timeout=60000)
             info["status"] = resp.status if resp else None
             pg.wait_for_timeout(8000)
-            for namn in ("Godkänn|Acceptera", "Jag har fyllt 20 år"):
+            for namn in ("Jag har fyllt 20 år", "Acceptera alla kakor"):
                 try:
                     pg.get_by_text(re.compile(namn, re.I)).first.click(timeout=4000, force=True)
                     pg.wait_for_timeout(2500)
@@ -97,7 +97,7 @@ with sync_playwright() as p:
                 pg.wait_for_timeout(2500)
             text = pg.inner_text("body")
             if os.environ.get("DEBUG_SB"):
-                print("KNAPPAR:", [x for x in pg.eval_on_selector_all("button, a[role=button]", "els => els.map(e => (e.innerText||e.getAttribute('aria-label')||'').trim())") if x][-25:])
+                print("KNAPPAR:", [x for x in pg.eval_on_selector_all("button, a[role=button]", "els => els.map(e => (e.innerText||e.getAttribute('aria-label')||'').trim())") if x and re.search("fler|mer|sida|Nästa|Visa", x)][-25:])
                 print("SLUT:", text[-700:].replace("\n", " | "))
             info["produkter_dom"] = parse_cards(text)
             info["produkter_api"] = list(api.values())
