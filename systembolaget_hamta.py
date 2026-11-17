@@ -92,6 +92,9 @@ with sync_playwright() as p:
                     pg.mouse.wheel(0, 6000)
                 pg.wait_for_timeout(2500)
             text = pg.inner_text("body")
+            if os.environ.get("DEBUG_SB"):
+                print("KNAPPAR:", [x for x in pg.eval_on_selector_all("button, a[role=button]", "els => els.map(e => (e.innerText||e.getAttribute('aria-label')||'').trim())") if x][-25:])
+                print("SLUT:", text[-700:].replace("\n", " | "))
             info["produkter_dom"] = parse_cards(text)
             info["produkter_api"] = list(api.values())
             info["antal_dom"] = len(info["produkter_dom"])
