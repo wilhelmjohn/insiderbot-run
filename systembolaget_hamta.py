@@ -74,17 +74,19 @@ with sync_playwright() as p:
             resp = pg.goto(url_for(kat), wait_until="domcontentloaded", timeout=60000)
             info["status"] = resp.status if resp else None
             pg.wait_for_timeout(8000)
-            try:
-                pg.get_by_role("button", name=re.compile("Godkänn|Acceptera", re.I)).first.click(timeout=3000)
-            except Exception:
-                pass
+            for namn in ("Godkänn|Acceptera", "Jag har fyllt 20 år"):
+                try:
+                    pg.get_by_role("button", name=re.compile(namn, re.I)).first.click(timeout=3000)
+                    pg.wait_for_timeout(2000)
+                except Exception:
+                    pass
             total = expected_count(pg.inner_text("body"))
             info["forvantat"] = total
             for _ in range(40):
                 antal = len(re.findall(r"\bNr \d+", pg.inner_text("body")))
                 if total is None or antal >= total:
                     break
-                knapp = pg.get_by_role("button", name=re.compile("Visa fler|Ladda fler|Visa mer", re.I)).first
+                knapp = pg.get_by_role("button", name=re.compile("Visa fler|Ladda fler|Visa mer|Nästa", re.I)).first
                 try:
                     knapp.scroll_into_view_if_needed(timeout=3000)
                     knapp.click(timeout=3000)
