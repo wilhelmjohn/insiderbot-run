@@ -45,7 +45,6 @@ jobs:
           FRAN: ${{ inputs.fran }}
           TILL: ${{ inputs.till }}
           KAT: ${{ inputs.kategorier }}
-          DEBUG_SB: "1"
         run: python -u _kod/systembolaget_hamta.py systembolaget "$FRAN" "$TILL" "$KAT"
       - name: Spara
         run: |
