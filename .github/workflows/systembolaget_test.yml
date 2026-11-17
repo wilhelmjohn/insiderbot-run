@@ -1,0 +1,60 @@
+name: systembolaget_test
+# Engångstest: kan GitHub Actions läsa Systembolagets filtrerade släpplistor (dynamisk sida)?
+# Läser bara och skriver ut resultatet i loggen. Committar ingenting, använder inga hemligheter.
+on:
+  workflow_dispatch:
+    inputs:
+      fran:
+        description: "saljstart-fran (ÅÅÅÅ-MM-DD)"
+        required: true
+        default: "2026-11-20"
+      till:
+        description: "saljstart-till (ÅÅÅÅ-MM-DD)"
+        required: true
+        default: "2026-11-20"
+      kategori:
+        description: "tillfalligt-sortiment, webblanseringar, fast-sortiment eller lokalt-smaskaligt"
+        required: true
+        default: "tillfalligt-sortiment"
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install playwright && playwright install --with-deps chromium
+      - name: Hämta lista
+        env:
+          FRAN: ${{ inputs.fran }}
+          TILL: ${{ inputs.till }}
+          KAT: ${{ inputs.kategori }}
+        run: |
+          cat > test.py <<'EOF'
+          import os, re
+          from playwright.sync_api import sync_playwright
+          url = f"https://www.systembolaget.se/sortiment/{os.environ['KAT']}/?kategori=Vin&saljstart-fran={os.environ['FRAN']}&saljstart-till={os.environ['TILL']}"
+          print("URL:", url)
+          with sync_playwright() as p:
+              b = p.chromium.launch()
+              pg = b.new_page(locale="sv-SE")
+              resp = pg.goto(url, wait_until="networkidle", timeout=60000)
+              print("HTTP-status:", resp.status if resp else None)
+              print("Titel:", pg.title())
+              try:
+                  pg.get_by_role("button", name=re.compile("Godkänn|Acceptera|Jag är över", re.I)).first.click(timeout=4000)
+              except Exception as e:
+                  print("Ingen kakruta/åldersruta klickad")
+              pg.wait_for_timeout(5000)
+              text = pg.inner_text("body")
+              print("Tecken på sidan:", len(text))
+              print(text[:4000])
+              links = pg.eval_on_selector_all("a[href*='/produkt/']", "els => els.map(e => e.href)")
+              print("Antal produktlänkar:", len(set(links)))
+              for l in sorted(set(links))[:40]:
+                  print(l)
+              b.close()
+          EOF
+          python -u test.py
