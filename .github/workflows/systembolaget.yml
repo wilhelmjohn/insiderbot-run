@@ -1,0 +1,60 @@
+name: systembolaget
+# Hämtar Systembolagets vinlanseringar (dynamiska listor) med Playwright och sparar dem
+# som JSON i datarepots mapp systembolaget/. Startas manuellt eller av Claudes veckouppgift.
+on:
+  workflow_dispatch:
+    inputs:
+      fran:
+        description: "saljstart-fran (ÅÅÅÅ-MM-DD)"
+        required: true
+        type: string
+      till:
+        description: "saljstart-till (ÅÅÅÅ-MM-DD)"
+        required: true
+        type: string
+      kategorier:
+        description: "kommaseparerat: tillfalligt-sortiment,webblanseringar,fast-sortiment,lokalt-smaskaligt,sasong"
+        required: true
+        default: "tillfalligt-sortiment,webblanseringar,fast-sortiment,lokalt-smaskaligt,sasong"
+        type: string
+concurrency:
+  group: systembolaget
+permissions:
+  contents: read
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Hämta data (låsta repot)
+        uses: actions/checkout@v4
+        with:
+          repository: wilhelmjohn/insiderbot
+          token: ${{ secrets.DATA_PAT }}
+          ref: main
+      - name: Hämta koden (öppna repot)
+        uses: actions/checkout@v4
+        with:
+          path: _kod
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install playwright && playwright install --with-deps chromium
+      - name: Hämta släpp
+        env:
+          FRAN: ${{ inputs.fran }}
+          TILL: ${{ inputs.till }}
+          KAT: ${{ inputs.kategorier }}
+        run: python -u _kod/systembolaget_hamta.py systembolaget "$FRAN" "$TILL" "$KAT"
+      - name: Spara
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add systembolaget
+          if git diff --cached --quiet; then echo "inget nytt"; exit 0; fi
+          git commit -m "systembolaget: släpp ${{ inputs.fran }} till ${{ inputs.till }}"
+          for i in 1 2 3; do
+            if git pull --rebase -X theirs --autostash >/tmp/gitlog.txt 2>&1 && git push >>/tmp/gitlog.txt 2>&1; then exit 0; fi
+            cat /tmp/gitlog.txt; sleep 8
+          done
+          exit 1
