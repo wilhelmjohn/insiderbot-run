@@ -60,8 +60,14 @@ with sync_playwright() as p:
         pg = ctx.new_page()
         api = {}
 
+        cap = {}
+
         def on_resp(r):
             if "productsearch" in r.url and r.request.method in ("GET", "POST"):
+                cap.setdefault("url", r.url)
+                cap.setdefault("headers", dict(r.request.headers))
+                cap.setdefault("method", r.request.method)
+                cap.setdefault("post", r.request.post_data)
                 try:
                     j = r.json()
                     for pr in j.get("products", []) or []:
@@ -96,6 +102,31 @@ with sync_playwright() as p:
                     pg.mouse.wheel(0, 8000)
                 pg.wait_for_timeout(2500)
             text = pg.inner_text("body")
+            if cap:
+                print("API:", cap["method"], cap["url"][:300], (cap.get("post") or "")[:300])
+                try:
+                    for sida in range(2, 12):
+                        if total is not None and len(api) >= total:
+                            break
+                        h = {k: v for k, v in cap["headers"].items() if not k.startswith(":") and k.lower() not in ("content-length", "host")}
+                        if cap["method"] == "GET":
+                            u = re.sub(r"([?&])page=\d+", r"\1page=%d" % sida, cap["url"])
+                            if "page=" not in u:
+                                u += ("&" if "?" in u else "?") + "page=%d" % sida
+                            rr = ctx.request.get(u, headers=h)
+                        else:
+                            body = json.loads(cap["post"] or "{}")
+                            body["page"] = sida
+                            rr = ctx.request.post(cap["url"], headers=h, data=json.dumps(body))
+                        j = rr.json()
+                        nya = j.get("products", []) or []
+                        print("sida", sida, rr.status, len(nya))
+                        if not nya:
+                            break
+                        for pr in nya:
+                            api[str(pr.get("productNumber") or pr.get("productId"))] = pr
+                except Exception as e:
+                    print("API-bläddring misslyckades:", repr(e)[:200])
             if os.environ.get("DEBUG_SB"):
                 print("KNAPPAR:", [x for x in pg.eval_on_selector_all("button, a[role=button]", "els => els.map(e => (e.innerText||e.getAttribute('aria-label')||'').trim())") if x and re.search("fler|mer|sida|Nästa|Visa", x)][-25:])
                 print("SLUT:", text[-700:].replace("\n", " | "))
